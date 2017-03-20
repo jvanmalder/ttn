@@ -12,10 +12,11 @@ import (
 )
 
 func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error) {
-	appID, devID := appDownlink.AppID, appDownlink.DevID
+	appID, location, devID := appDownlink.AppID, appDownlink.Location, appDownlink.DevID
 
 	ctx := h.Ctx.WithFields(log.Fields{
 		"AppID": appID,
+		"Location": location,
 		"DevID": devID,
 	})
 	start := time.Now()
@@ -34,10 +35,12 @@ func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error
 
 	// Clear redundant fields
 	appDownlink.AppID = ""
+	appDownlink.Location = ""
 	appDownlink.DevID = ""
 
 	dev.StartUpdate()
 	dev.NextDownlink = appDownlink
+	dev.Location = location // update location on downlink, as this is the easiest way of getting the current location
 	err = h.devices.Set(dev)
 	if err != nil {
 		return err
@@ -45,6 +48,7 @@ func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error
 
 	h.mqttEvent <- &types.DeviceEvent{
 		AppID: appID,
+		Location: location,
 		DevID: devID,
 		Event: types.DownlinkScheduledEvent,
 	}
@@ -53,10 +57,11 @@ func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error
 }
 
 func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *pb_broker.DownlinkMessage) error {
-	appID, devID := appDownlink.AppID, appDownlink.DevID
+	appID, location, devID := appDownlink.AppID, appDownlink.Location, appDownlink.DevID
 
 	ctx := h.Ctx.WithFields(log.Fields{
 		"AppID":  appID,
+		"Location": location,
 		"DevID":  devID,
 		"AppEUI": downlink.AppEui,
 		"DevEUI": downlink.DevEui,
@@ -67,6 +72,7 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 		if err != nil {
 			h.mqttEvent <- &types.DeviceEvent{
 				AppID: appID,
+				Location: location,
 				DevID: devID,
 				Event: types.DownlinkErrorEvent,
 				Data:  types.ErrorEventData{Error: err.Error()},
@@ -115,6 +121,7 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 
 	h.mqttEvent <- &types.DeviceEvent{
 		AppID: appDownlink.AppID,
+		Location: appDownlink.Location,
 		DevID: appDownlink.DevID,
 		Event: types.DownlinkSentEvent,
 		Data: types.DownlinkEventData{

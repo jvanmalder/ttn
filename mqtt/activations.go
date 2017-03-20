@@ -18,7 +18,7 @@ func (c *DefaultClient) PublishActivation(activation types.Activation) Token {
 	devID := activation.DevID
 	activation.AppID = ""
 	activation.DevID = ""
-	return c.PublishDeviceEvent(appID, devID, types.ActivationEvent, activation)
+	return c.PublishDeviceEvent(appID, "", devID, types.ActivationEvent, activation)
 }
 
 // SubscribeDeviceActivations subscribes to all activations for the given application and device

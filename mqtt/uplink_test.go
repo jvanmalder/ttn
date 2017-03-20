@@ -50,8 +50,8 @@ func TestPublishUplinkFields(t *testing.T) {
 		close(subChan)
 		waitChan <- true
 	}()
-	subToken := c.(*DefaultClient).mqtt.Subscribe("fields-app/devices/fields-dev/up/#", SubscribeQoS, func(_ MQTT.Client, msg MQTT.Message) {
-		switch strings.TrimPrefix(msg.Topic(), "fields-app/devices/fields-dev/up/") {
+	subToken := c.(*DefaultClient).mqtt.Subscribe("fields-app/fields-location/fields-dev/up/#", SubscribeQoS, func(_ MQTT.Client, msg MQTT.Message) {
+		switch strings.TrimPrefix(msg.Topic(), "fields-app/fields-location/fields-dev/up/") {
 		case "battery":
 			a.So(string(msg.Payload()), ShouldEqual, "90")
 		case "sensors":
@@ -95,7 +95,7 @@ func TestPublishUplinkFields(t *testing.T) {
 		"gps": []float64{52.3736735, 4.886663},
 	}
 
-	pubToken := c.PublishUplinkFields("fields-app", "fields-dev", fields)
+	pubToken := c.PublishUplinkFields("fields-app", "fields-location", "fields-dev", fields)
 	waitForOK(pubToken, a)
 
 	select {

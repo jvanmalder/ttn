@@ -58,7 +58,7 @@ func (h *handler) HandleMQTT(username, password string, mqttBrokers ...string) e
 				}
 			}()
 			if len(up.PayloadFields) > 0 {
-				fieldsToken := h.mqttClient.PublishUplinkFields(up.AppID, up.DevID, up.PayloadFields)
+				fieldsToken := h.mqttClient.PublishUplinkFields(up.AppID, up.Location, up.DevID, up.PayloadFields)
 				go func() {
 					if fieldsToken.WaitTimeout(MQTTTimeout) {
 						if fieldsToken.Error() != nil {
@@ -83,7 +83,7 @@ func (h *handler) HandleMQTT(username, password string, mqttBrokers ...string) e
 			if event.DevID == "" {
 				token = h.mqttClient.PublishAppEvent(event.AppID, event.Event, event.Data)
 			} else {
-				token = h.mqttClient.PublishDeviceEvent(event.AppID, event.DevID, event.Event, event.Data)
+				token = h.mqttClient.PublishDeviceEvent(event.AppID, event.Location, event.DevID, event.Event, event.Data)
 			}
 			go func() {
 				if token.WaitTimeout(MQTTTimeout) {

@@ -30,12 +30,14 @@ func TestHandleMQTT(t *testing.T) {
 	a.So(err, ShouldBeNil)
 	appID := "handler-mqtt-app1"
 	devID := "handler-mqtt-dev1"
+	location := "location"
 	h := &handler{
 		Component: &component.Component{Ctx: GetLogger(t, "TestHandleMQTT")},
 		devices:   device.NewRedisDeviceStore(GetRedisClient(), "handler-test-handle-mqtt"),
 	}
 	h.devices.Set(&device.Device{
 		AppID: appID,
+		Location: location,
 		DevID: devID,
 	})
 	defer func() {
@@ -46,6 +48,7 @@ func TestHandleMQTT(t *testing.T) {
 
 	c.PublishDownlink(types.DownlinkMessage{
 		AppID:      appID,
+		Location: location,
 		DevID:      devID,
 		PayloadRaw: []byte{0xAA, 0xBC},
 	}).Wait()
@@ -63,6 +66,7 @@ func TestHandleMQTT(t *testing.T) {
 
 	h.mqttUp <- &types.UplinkMessage{
 		DevID:      devID,
+		Location: location,
 		AppID:      appID,
 		PayloadRaw: []byte{0xAA, 0xBC},
 		PayloadFields: map[string]interface{}{
@@ -79,6 +83,7 @@ func TestHandleMQTT(t *testing.T) {
 
 	h.mqttEvent <- &types.DeviceEvent{
 		DevID: devID,
+		Location: location,
 		AppID: appID,
 		Event: types.ActivationEvent,
 	}

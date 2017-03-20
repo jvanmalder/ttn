@@ -16,8 +16,15 @@ var ResponseDeadline = 100 * time.Millisecond
 
 func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err error) {
 	appID, devID := uplink.AppId, uplink.DevId
+	// Find device for location
+	dev, err := h.devices.Get(uplink.AppId, uplink.DevId)
+	if err != nil {
+		return err
+	}
+	location := dev.Location
 	ctx := h.Ctx.WithFields(log.Fields{
 		"AppID": appID,
+		"Location": location,
 		"DevID": devID,
 	})
 	start := time.Now()
@@ -25,6 +32,7 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 		if err != nil {
 			h.mqttEvent <- &types.DeviceEvent{
 				AppID: appID,
+				Location: location,
 				DevID: devID,
 				Event: types.UplinkErrorEvent,
 				Data:  types.ErrorEventData{Error: err.Error()},
@@ -38,6 +46,7 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 	// Build AppUplink
 	appUplink := &types.UplinkMessage{
 		AppID: appID,
+		Location: location,
 		DevID: devID,
 	}
 
@@ -45,7 +54,7 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 	processors := []UplinkProcessor{
 		h.ConvertFromLoRaWAN,
 		h.ConvertMetadata,
-		h.ConvertFieldsUp,
+		h.ConvertFieldsUp, // TODO: this uses the raw payload -> check if this should be removed or if it just succeeds
 	}
 
 	ctx.WithField("NumProcessors", len(processors)).Debug("Running Uplink Processors")
@@ -69,12 +78,8 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 
 	<-time.After(ResponseDeadline)
 
-	// Find Device and scheduled downlink
+	// Find scheduled downlink
 	var appDownlink types.DownlinkMessage
-	dev, err := h.devices.Get(uplink.AppId, uplink.DevId)
-	if err != nil {
-		return err
-	}
 	if dev.NextDownlink != nil {
 		appDownlink = *dev.NextDownlink
 	}
@@ -87,6 +92,7 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 	// Prepare Downlink
 	downlink := uplink.ResponseTemplate
 	appDownlink.AppID = uplink.AppId
+	appDownlink.Location = location
 	appDownlink.DevID = uplink.DevId
 
 	// Handle Downlink

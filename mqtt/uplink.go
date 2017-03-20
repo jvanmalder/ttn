@@ -16,9 +16,10 @@ type UplinkHandler func(client Client, appID string, devID string, req types.Upl
 
 // PublishUplink publishes an uplink message to the MQTT broker
 func (c *DefaultClient) PublishUplink(dataUp types.UplinkMessage) Token {
-	topic := DeviceTopic{dataUp.AppID, dataUp.DevID, DeviceUplink, ""}
+	topic := DeviceTopic{dataUp.AppID, dataUp.Location, dataUp.DevID, DeviceUplink, ""}
 	dataUp.AppID = ""
 	dataUp.DevID = ""
+	dataUp.Location = ""
 	msg, err := json.Marshal(dataUp)
 	if err != nil {
 		return &simpleToken{fmt.Errorf("Unable to marshal the message payload")}
@@ -27,12 +28,12 @@ func (c *DefaultClient) PublishUplink(dataUp types.UplinkMessage) Token {
 }
 
 // PublishUplinkFields publishes uplink fields to MQTT
-func (c *DefaultClient) PublishUplinkFields(appID string, devID string, fields map[string]interface{}) Token {
+func (c *DefaultClient) PublishUplinkFields(appID string, location string, devID string, fields map[string]interface{}) Token {
 	flattenedFields := make(map[string]interface{})
 	flatten("", "/", fields, flattenedFields)
 	tokens := make([]Token, 0, len(flattenedFields))
 	for field, value := range flattenedFields {
-		topic := DeviceTopic{appID, devID, DeviceUplink, field}
+		topic := DeviceTopic{appID, location, devID, DeviceUplink, field}
 		pld, _ := json.Marshal(value)
 		token := c.publish(topic.String(), pld)
 		tokens = append(tokens, token)
@@ -66,7 +67,7 @@ func flatten(prefix, sep string, in, out map[string]interface{}) {
 
 // SubscribeDeviceUplink subscribes to all uplink messages for the given application and device
 func (c *DefaultClient) SubscribeDeviceUplink(appID string, devID string, handler UplinkHandler) Token {
-	topic := DeviceTopic{appID, devID, DeviceUplink, ""}
+	topic := DeviceTopic{appID, "", devID, DeviceUplink, ""}
 	return c.subscribe(topic.String(), func(mqtt MQTT.Client, msg MQTT.Message) {
 		// Determine the actual topic
 		topic, err := ParseDeviceTopic(msg.Topic())
@@ -103,7 +104,7 @@ func (c *DefaultClient) SubscribeUplink(handler UplinkHandler) Token {
 
 // UnsubscribeDeviceUplink unsubscribes from the uplink messages for the given application and device
 func (c *DefaultClient) UnsubscribeDeviceUplink(appID string, devID string) Token {
-	topic := DeviceTopic{appID, devID, DeviceUplink, ""}
+	topic := DeviceTopic{appID, "", devID, DeviceUplink, ""}
 	return c.unsubscribe(topic.String())
 }
 

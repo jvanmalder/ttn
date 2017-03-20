@@ -16,9 +16,10 @@ type DownlinkHandler func(client Client, appID string, devID string, req types.D
 
 // PublishDownlink publishes a downlink message
 func (c *DefaultClient) PublishDownlink(dataDown types.DownlinkMessage) Token {
-	topic := DeviceTopic{dataDown.AppID, dataDown.DevID, DeviceDownlink, ""}
+	topic := DeviceTopic{dataDown.AppID, dataDown.Location, dataDown.DevID, DeviceDownlink, ""}
 	dataDown.AppID = ""
 	dataDown.DevID = ""
+	dataDown.Location = ""
 	msg, err := json.Marshal(dataDown)
 	if err != nil {
 		return &simpleToken{fmt.Errorf("Unable to marshal the message payload")}
@@ -28,7 +29,7 @@ func (c *DefaultClient) PublishDownlink(dataDown types.DownlinkMessage) Token {
 
 // SubscribeDeviceDownlink subscribes to all downlink messages for the given application and device
 func (c *DefaultClient) SubscribeDeviceDownlink(appID string, devID string, handler DownlinkHandler) Token {
-	topic := DeviceTopic{appID, devID, DeviceDownlink, ""}
+	topic := DeviceTopic{appID, "", devID, DeviceDownlink, ""}
 	return c.subscribe(topic.String(), func(mqtt MQTT.Client, msg MQTT.Message) {
 		// Determine the actual topic
 		topic, err := ParseDeviceTopic(msg.Topic())
@@ -64,7 +65,7 @@ func (c *DefaultClient) SubscribeDownlink(handler DownlinkHandler) Token {
 
 // UnsubscribeDeviceDownlink unsubscribes from the downlink messages for the given application and device
 func (c *DefaultClient) UnsubscribeDeviceDownlink(appID string, devID string) Token {
-	topic := DeviceTopic{appID, devID, DeviceDownlink, ""}
+	topic := DeviceTopic{appID, "", devID, DeviceDownlink, ""}
 	return c.unsubscribe(topic.String())
 }
 

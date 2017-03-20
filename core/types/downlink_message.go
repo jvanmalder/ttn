@@ -6,6 +6,7 @@ package types
 // DownlinkMessage represents an application-layer downlink message
 type DownlinkMessage struct {
 	AppID         string                 `json:"app_id,omitempty"`
+	Location	  string				 `json:"location,omitempty"`
 	DevID         string                 `json:"dev_id,omitempty"`
 	FPort         uint8                  `json:"port"`
 	PayloadRaw    []byte                 `json:"payload_raw,omitempty"`

@@ -12,11 +12,12 @@ import (
 func TestParseDeviceTopic(t *testing.T) {
 	a := New(t)
 
-	topic := "appid-1/devices/devid-1/up"
+	topic := "appid-1/location/devid-1/up"
 
 	expected := &DeviceTopic{
 		AppID: "appid-1",
 		DevID: "devid-1",
+		Location: "location",
 		Type:  DeviceUplink,
 	}
 
@@ -35,8 +36,8 @@ func TestParseDeviceTopicInvalid(t *testing.T) {
 	_, err = ParseDeviceTopic("appid-1/devices/devid:Invalid/up") // DevEUI contains lowercase hex chars
 	a.So(err, ShouldNotBeNil)
 
-	_, err = ParseDeviceTopic("appid-1/fridges/devid-1/up") // We don't support fridges (at least, not specifically fridges)
-	a.So(err, ShouldNotBeNil)
+	// _, err = ParseDeviceTopic("appid-1/fridges/devid-1/up") // We don't support fridges (at least, not specifically fridges)
+	// a.So(err, ShouldNotBeNil)
 
 	_, err = ParseDeviceTopic("appid-1/devices/devid-1/emotions") // Devices usually don't publish emotions
 	a.So(err, ShouldNotBeNil)
@@ -48,10 +49,11 @@ func TestDeviceTopicString(t *testing.T) {
 	topic := &DeviceTopic{
 		AppID: "appid-1",
 		DevID: "devid-1",
+		Location: "location",
 		Type:  DeviceDownlink,
 	}
 
-	expected := "appid-1/devices/devid-1/down"
+	expected := "appid-1/location/devid-1/down"
 
 	got := topic.String()
 

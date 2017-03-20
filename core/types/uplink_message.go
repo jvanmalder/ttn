@@ -6,6 +6,7 @@ package types
 // UplinkMessage represents an application-layer uplink message
 type UplinkMessage struct {
 	AppID         string                 `json:"app_id,omitempty"`
+	Location	  string				 `json:"location,omitempty"`
 	DevID         string                 `json:"dev_id,omitempty"`
 	FPort         uint8                  `json:"port"`
 	FCnt          uint32                 `json:"counter"`

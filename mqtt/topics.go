@@ -25,6 +25,7 @@ const (
 // DeviceTopic represents an MQTT topic for devices
 type DeviceTopic struct {
 	AppID string
+	Location string
 	DevID string
 	Type  DeviceTopicType
 	Field string
@@ -32,7 +33,8 @@ type DeviceTopic struct {
 
 // ParseDeviceTopic parses an MQTT device topic string to a DeviceTopic struct
 func ParseDeviceTopic(topic string) (*DeviceTopic, error) {
-	pattern := regexp.MustCompile("^([0-9a-z](?:[_-]?[0-9a-z]){1,35}|\\+)/(devices)/([0-9a-z](?:[_-]?[0-9a-z]){1,35}|\\+)/(events|up|down)([0-9a-z/]+)?$")
+	// TODO: (devices) => location regex
+	pattern := regexp.MustCompile("^([0-9a-z](?:[_-]?[0-9a-z]){1,35}|\\+)/([^\\0 !$`&*()]+)/([0-9a-z](?:[_-]?[0-9a-z]){1,35}|\\+)/(events|up|down)([0-9a-z/]+)?$")
 	matches := pattern.FindStringSubmatch(topic)
 	if len(matches) < 4 {
 		return nil, fmt.Errorf("Invalid topic format")
@@ -41,12 +43,16 @@ func ParseDeviceTopic(topic string) (*DeviceTopic, error) {
 	if matches[1] != simpleWildcard {
 		appID = matches[1]
 	}
+	var location string
+	if matches[2] != simpleWildcard {
+		location = matches[2]
+	}
 	var devID string
 	if matches[3] != simpleWildcard {
 		devID = matches[3]
 	}
 	topicType := DeviceTopicType(matches[4])
-	deviceTopic := &DeviceTopic{appID, devID, topicType, ""}
+	deviceTopic := &DeviceTopic{appID, location, devID, topicType, ""}
 	if (topicType == DeviceUplink || topicType == DeviceEvents) && len(matches) > 4 {
 		deviceTopic.Field = strings.Trim(matches[5], "/")
 	}
@@ -59,6 +65,10 @@ func (t DeviceTopic) String() string {
 	if t.AppID != "" {
 		appID = t.AppID
 	}
+	location := simpleWildcard
+	if t.Location != "" {
+		location = t.Location
+	}
 	devID := simpleWildcard
 	if t.DevID != "" {
 		devID = t.DevID
@@ -66,7 +76,7 @@ func (t DeviceTopic) String() string {
 	if t.Type == DeviceEvents && t.Field == "" {
 		t.Field = simpleWildcard
 	}
-	topic := fmt.Sprintf("%s/%s/%s/%s", appID, "devices", devID, t.Type)
+	topic := fmt.Sprintf("%s/%s/%s/%s", appID, location, devID, t.Type)
 	if (t.Type == DeviceUplink || t.Type == DeviceEvents) && t.Field != "" {
 		topic += "/" + t.Field
 	}

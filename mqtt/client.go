@@ -31,7 +31,7 @@ type Client interface {
 
 	// Uplink pub/sub
 	PublishUplink(payload types.UplinkMessage) Token
-	PublishUplinkFields(appID string, devID string, fields map[string]interface{}) Token
+	PublishUplinkFields(appID string, location string, devID string, fields map[string]interface{}) Token
 	SubscribeDeviceUplink(appID string, devID string, handler UplinkHandler) Token
 	SubscribeAppUplink(appID string, handler UplinkHandler) Token
 	SubscribeUplink(handler UplinkHandler) Token
@@ -50,7 +50,7 @@ type Client interface {
 
 	// Event pub/sub
 	PublishAppEvent(appID string, eventType types.EventType, payload interface{}) Token
-	PublishDeviceEvent(appID string, devID string, eventType types.EventType, payload interface{}) Token
+	PublishDeviceEvent(appID string, location string, devID string, eventType types.EventType, payload interface{}) Token
 	SubscribeAppEvents(appID string, eventType types.EventType, handler AppEventHandler) Token
 	SubscribeDeviceEvents(appID string, devID string, eventType types.EventType, handler DeviceEventHandler) Token
 	UnsubscribeAppEvents(appID string, eventType types.EventType) Token

@@ -20,6 +20,7 @@ type Device struct {
 	DevEUI        types.DevEUI           `redis:"dev_eui"`
 	AppEUI        types.AppEUI           `redis:"app_eui"`
 	AppID         string                 `redis:"app_id"`
+	Location	  string				 `redis:"location"`
 	DevID         string                 `redis:"dev_id"`
 	DevAddr       types.DevAddr          `redis:"dev_addr"`
 	AppKey        types.AppKey           `redis:"app_key"`

@@ -49,7 +49,7 @@ func TestPublishSubscribeDeviceEvents(t *testing.T) {
 		wg.Done()
 	})
 	waitForOK(subToken, a)
-	pubToken := c.PublishDeviceEvent("app-id", "dev-id", "some-event", "payload")
+	pubToken := c.PublishDeviceEvent("app-id", "location", "dev-id", "some-event", "payload")
 	waitForOK(pubToken, a)
 	unsubToken := c.UnsubscribeDeviceEvents("app-id", "dev-id", "")
 	waitForOK(unsubToken, a)

@@ -20,6 +20,7 @@ const (
 // DeviceEvent represents an application-layer event message for a device event
 type DeviceEvent struct {
 	AppID string
+	Location string
 	DevID string
 	Event EventType
 	Data  interface{}
