@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package networkserver
@@ -6,20 +6,22 @@ package networkserver
 import (
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/TheThingsNetwork/go-utils/pseudorandom"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
 	pb_handler "github.com/TheThingsNetwork/ttn/api/handler"
-	pb_protocol "github.com/TheThingsNetwork/ttn/api/protocol"
+	"github.com/TheThingsNetwork/ttn/api/trace"
+	"github.com/TheThingsNetwork/ttn/core/networkserver/device"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
-	"github.com/TheThingsNetwork/ttn/utils/random"
 	"github.com/brocaar/lorawan"
 )
 
 func (n *networkServer) getDevAddr(constraints ...string) (types.DevAddr, error) {
 	// Generate random DevAddr bytes
 	var devAddr types.DevAddr
-	copy(devAddr[:], random.Bytes(4))
+	pseudorandom.FillBytes(devAddr[:])
 
 	// Get a random prefix that matches the constraints
 	prefixes := n.GetPrefixesFor(constraints...)
@@ -28,7 +30,7 @@ func (n *networkServer) getDevAddr(constraints ...string) (types.DevAddr, error)
 	}
 
 	// Select a prefix
-	prefix := prefixes[random.Intn(len(prefixes))]
+	prefix := prefixes[pseudorandom.Intn(len(prefixes))]
 
 	// Apply the prefix
 	devAddr = devAddr.WithPrefix(prefix)
@@ -47,6 +49,11 @@ func (n *networkServer) HandlePrepareActivation(activation *pb_broker.Deduplicat
 	activation.AppId = dev.AppID
 	activation.DevId = dev.DevID
 
+	// Don't take any action if there is no response possible
+	if pld := activation.GetResponseTemplate(); pld == nil {
+		return activation, nil
+	}
+
 	// Get activation constraints (for DevAddr prefix selection)
 	activationConstraints := strings.Split(dev.Options.ActivationConstraints, ",")
 	if len(activationConstraints) == 1 && activationConstraints[0] == "" {
@@ -54,22 +61,14 @@ func (n *networkServer) HandlePrepareActivation(activation *pb_broker.Deduplicat
 	}
 	activationConstraints = append(activationConstraints, "otaa")
 
-	// Build activation metadata if not present
-	if meta := activation.GetActivationMetadata(); meta == nil {
-		activation.ActivationMetadata = &pb_protocol.ActivationMetadata{}
-	}
-	// Build lorawan metadata if not present
-	if lorawan := activation.ActivationMetadata.GetLorawan(); lorawan == nil {
+	// We can only activate LoRaWAN devices
+	lorawanMeta := activation.GetActivationMetadata().GetLorawan()
+	if lorawanMeta == nil {
 		return nil, errors.NewErrInvalidArgument("Activation", "missing LoRaWAN metadata")
 	}
 
-	// Build response template if not present
-	if pld := activation.GetResponseTemplate(); pld == nil {
-		return nil, errors.NewErrInvalidArgument("Activation", "missing response template")
-	}
-	lorawanMeta := activation.ActivationMetadata.GetLorawan()
-
-	// Get a random device address
+	// Allocate a  device address
+	activation.Trace = activation.Trace.WithEvent("allocate devaddr")
 	devAddr, err := n.getDevAddr(activationConstraints...)
 	if err != nil {
 		return nil, err
@@ -118,9 +117,41 @@ func (n *networkServer) HandleActivate(activation *pb_handler.DeviceActivationRe
 	if lorawan == nil {
 		return nil, errors.NewErrInvalidArgument("Activation", "missing LoRaWAN ActivationMetadata")
 	}
-	err := n.devices.Activate(*lorawan.AppEui, *lorawan.DevEui, *lorawan.DevAddr, *lorawan.NwkSKey)
+	n.status.activations.Mark(1)
+
+	dev, err := n.devices.Get(*lorawan.AppEui, *lorawan.DevEui)
 	if err != nil {
 		return nil, err
 	}
+
+	activation.Trace = activation.Trace.WithEvent(trace.UpdateStateEvent)
+	dev.StartUpdate()
+
+	dev.LastSeen = time.Now()
+	dev.UpdatedAt = time.Now()
+	dev.DevAddr = *lorawan.DevAddr
+	dev.NwkSKey = *lorawan.NwkSKey
+	dev.FCntUp = 0
+	dev.FCntDown = 0
+	dev.ADR = device.ADRSettings{Band: dev.ADR.Band, Margin: dev.ADR.Margin}
+
+	if band := meta.GetLorawan().GetRegion().String(); band != "" {
+		dev.ADR.Band = band
+	}
+
+	err = n.devices.Set(dev)
+	if err != nil {
+		return nil, err
+	}
+
+	frames, err := n.devices.Frames(dev.AppEUI, dev.DevEUI)
+	if err != nil {
+		return nil, err
+	}
+	err = frames.Clear()
+	if err != nil {
+		return nil, err
+	}
+
 	return activation, nil
 }

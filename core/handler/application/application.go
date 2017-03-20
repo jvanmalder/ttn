@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package application
@@ -10,9 +10,12 @@ import (
 	"github.com/fatih/structs"
 )
 
+const currentDBVersion = "2.4.1"
+
 // Application contains the state of an application
 type Application struct {
-	old   *Application
+	old *Application
+
 	AppID string `redis:"app_id"`
 	// Decoder is a JavaScript function that accepts the payload as byte array and
 	// returns an object containing the decoded values
@@ -37,6 +40,11 @@ func (a *Application) StartUpdate() {
 	a.old = &old
 }
 
+// DBVersion of the model
+func (a *Application) DBVersion() string {
+	return currentDBVersion
+}
+
 // ChangedFields returns the names of the changed fields since the last call to StartUpdate
 func (a Application) ChangedFields() (changed []string) {
 	new := structs.New(a)
@@ -54,5 +62,10 @@ func (a Application) ChangedFields() (changed []string) {
 			changed = append(changed, field.Name())
 		}
 	}
+
+	if len(changed) == 1 && changed[0] == "UpdatedAt" {
+		return []string{}
+	}
+
 	return
 }

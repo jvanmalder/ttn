@@ -1,7 +1,7 @@
 The Things Network
 ==================
 
-[![Build Status](https://travis-ci.org/TheThingsNetwork/ttn.svg?branch=develop)](https://travis-ci.org/TheThingsNetwork/ttn) [![Slack Status](https://slack.thethingsnetwork.org/badge.svg)](https://slack.thethingsnetwork.org/) [![Coverage Status](https://coveralls.io/repos/github/TheThingsNetwork/ttn/badge.svg?branch=develop)](https://coveralls.io/github/TheThingsNetwork/ttn?branch=develop)
+[![Build Status](https://travis-ci.org/TheThingsNetwork/ttn.svg?branch=master)](https://travis-ci.org/TheThingsNetwork/ttn) [![Slack Status](https://slack.thethingsnetwork.org/badge.svg)](https://slack.thethingsnetwork.org/) [![Coverage Status](https://coveralls.io/repos/github/TheThingsNetwork/ttn/badge.svg?branch=master)](https://coveralls.io/github/TheThingsNetwork/ttn?branch=master)
 
 ![The Things Network](http://thethingsnetwork.org/static/ttn/media/The%20Things%20Uitlijning.svg)
 
@@ -26,12 +26,12 @@ When you get started with The Things Network, you'll probably have some question
 5. Make sure you have [Redis](http://redis.io/download) and [RabbitMQ](https://www.rabbitmq.com/download.html) **installed** and **running**.  
   On a fresh installation you might need to install the [MQTT plugin for RabbitMQ](https://www.rabbitmq.com/mqtt.html).  
   If you're on Linux, you probably know how to do that. On a Mac, just run `brew bundle`. The Windows installer will setup and start RabbitMQ as a service. Use the `RabbitMQ Command Prompt (sbin dir)` to run commands, i.e. to enable plugins.
-6. Declare a RabbitMQ exchange `ttn.handler` of type `topic`. Using [the management plugin](http://www.rabbitmq.com/management.html), declare the exchange in the web interface `http://server-name:15672` or using the management cli, run `rabbitmqadmin declare exchange name=ttn.handler type=topic auto_delete=false durable=true`
+6. Declare a RabbitMQ exchange `ttn.handler` of type `topic`. Using [the management plugin](http://www.rabbitmq.com/management.html), declare the exchange in the web interface `http://server-name:15672` or using the management cli, run `rabbitmqadmin declare exchange name=ttn.handler type=topic auto_delete=false durable=true`. If your handler's user has sufficient permissions on RabbitMQ, it will attempt to create the exchange if not present.
 
 ## Set up The Things Network's backend for Development
 
 1. Fork this repository
-2. Clone your fork: `git clone --branch v2-preview --recursive https://github.com/YOURUSERNAME/ttn.git $GOPATH/src/github.com/TheThingsNetwork/ttn`
+2. Clone your fork: `git clone --branch develop https://github.com/YOURUSERNAME/ttn.git $GOPATH/src/github.com/TheThingsNetwork/ttn`
 3. `cd $GOPATH/src/github.com/TheThingsNetwork/ttn`
 4. Install the dependencies for development: `make dev-deps`
 5. Run the tests: `make test`
@@ -48,7 +48,7 @@ You can check your `ttnctl` configuration by running `ttnctl config`. It should 
          config file: /home/your-user/.ttnctl.yml
             data dir: /home/your-user/.ttnctl
 
-         auth-server: https://preview.account.thethingsnetwork.org
+         auth-server: https://account.thethingsnetwork.org
    discovery-address: localhost:1900
            router-id: dev
           handler-id: dev

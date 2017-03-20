@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package announcement
@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TheThingsNetwork/ttn/core/discovery/announcement/migrate"
 	"github.com/TheThingsNetwork/ttn/core/storage"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
@@ -16,8 +17,8 @@ import (
 
 // Store interface for Announcements
 type Store interface {
-	List() ([]*Announcement, error)
-	ListService(serviceName string) ([]*Announcement, error)
+	List(opts *storage.ListOptions) ([]*Announcement, error)
+	ListService(serviceName string, opts *storage.ListOptions) ([]*Announcement, error)
 	Get(serviceName, serviceID string) (*Announcement, error)
 	GetMetadata(serviceName, serviceID string) ([]Metadata, error)
 	GetForAppID(appID string) (*Announcement, error)
@@ -42,6 +43,9 @@ func NewRedisAnnouncementStore(client *redis.Client, prefix string) Store {
 	}
 	store := storage.NewRedisMapStore(client, prefix+":"+redisAnnouncementPrefix)
 	store.SetBase(Announcement{}, "")
+	for v, f := range migrate.AnnouncementMigrations(prefix) {
+		store.AddMigration(v, f)
+	}
 	return &RedisAnnouncementStore{
 		store:    store,
 		metadata: storage.NewRedisSetStore(client, prefix+":"+redisMetadataPrefix),
@@ -63,15 +67,15 @@ type RedisAnnouncementStore struct {
 
 // List all Announcements
 // The resulting Announcements do *not* include metadata
-func (s *RedisAnnouncementStore) List() ([]*Announcement, error) {
-	announcementsI, err := s.store.List("", nil)
+func (s *RedisAnnouncementStore) List(opts *storage.ListOptions) ([]*Announcement, error) {
+	announcementsI, err := s.store.List("", opts)
 	if err != nil {
 		return nil, err
 	}
-	announcements := make([]*Announcement, 0, len(announcementsI))
-	for _, announcementI := range announcementsI {
+	announcements := make([]*Announcement, len(announcementsI))
+	for i, announcementI := range announcementsI {
 		if announcement, ok := announcementI.(Announcement); ok {
-			announcements = append(announcements, &announcement)
+			announcements[i] = &announcement
 		}
 	}
 	return announcements, nil
@@ -79,15 +83,15 @@ func (s *RedisAnnouncementStore) List() ([]*Announcement, error) {
 
 // ListService lists all Announcements for a given service (router/broker/handler)
 // The resulting Announcements *do* include metadata
-func (s *RedisAnnouncementStore) ListService(serviceName string) ([]*Announcement, error) {
-	announcementsI, err := s.store.List(serviceName+":*", nil)
+func (s *RedisAnnouncementStore) ListService(serviceName string, opts *storage.ListOptions) ([]*Announcement, error) {
+	announcementsI, err := s.store.List(serviceName+":*", opts)
 	if err != nil {
 		return nil, err
 	}
-	announcements := make([]*Announcement, 0, len(announcementsI))
-	for _, announcementI := range announcementsI {
+	announcements := make([]*Announcement, len(announcementsI))
+	for i, announcementI := range announcementsI {
 		if announcement, ok := announcementI.(Announcement); ok {
-			announcements = append(announcements, &announcement)
+			announcements[i] = &announcement
 			announcement.Metadata, err = s.GetMetadata(announcement.ServiceName, announcement.ID)
 			if err != nil {
 				return nil, err
@@ -156,14 +160,13 @@ func (s *RedisAnnouncementStore) GetForAppEUI(appEUI types.AppEUI) (*Announcemen
 // Set a new Announcement or update an existing one
 // The metadata of the announcement is ignored, as metadata should be managed with AddMetadata and RemoveMetadata
 func (s *RedisAnnouncementStore) Set(new *Announcement) error {
-	key := fmt.Sprintf("%s:%s", new.ServiceName, new.ID)
 	now := time.Now()
 	new.UpdatedAt = now
-	err := s.store.Update(key, *new)
-	if errors.GetErrType(err) == errors.NotFound {
+	key := fmt.Sprintf("%s:%s", new.ServiceName, new.ID)
+	if new.old == nil {
 		new.CreatedAt = now
-		err = s.store.Create(key, *new)
 	}
+	err := s.store.Set(key, *new)
 	if err != nil {
 		return err
 	}

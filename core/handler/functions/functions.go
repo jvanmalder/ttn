@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package functions
@@ -13,7 +13,7 @@ import (
 
 var errTimeOutExceeded = errors.NewErrInternal("Code has been running to long")
 
-func RunCode(name, code string, env map[string]interface{}, timeout time.Duration, logger Logger) (otto.Value, error) {
+func RunCode(name, code string, env map[string]interface{}, timeout time.Duration, logger Logger) (val otto.Value, err error) {
 	vm := otto.New()
 
 	// load the environment
@@ -32,22 +32,18 @@ func RunCode(name, code string, env map[string]interface{}, timeout time.Duratio
 	})
 	vm.Run("console.log = __log")
 
-	var value otto.Value
-	var err error
-
 	start := time.Now()
 
 	defer func() {
 		duration := time.Since(start)
 		if caught := recover(); caught != nil {
+			val = otto.Value{}
 			if caught == errTimeOutExceeded {
-				value = otto.Value{}
-				err = errors.NewErrInternal(fmt.Sprintf("Interrupted javascript execution after %v", duration))
+				err = errors.NewErrInternal(fmt.Sprintf("Interrupted javascript execution for %s after %v", name, duration))
 				return
+			} else {
+				err = errors.NewErrInternal(fmt.Sprintf("Fatal error in %s: %s", name, caught))
 			}
-			// if this is not the our timeout interrupt, raise the panic again
-			// so someone else can handle it
-			panic(caught)
 		}
 	}()
 
@@ -59,7 +55,11 @@ func RunCode(name, code string, env map[string]interface{}, timeout time.Duratio
 			panic(errTimeOutExceeded)
 		}
 	}()
-	val, err := vm.Run(code)
 
-	return val, err
+	val, err = vm.Run(code)
+	if err != nil {
+		return val, errors.NewErrInternal(fmt.Sprintf("%s threw error: %s", name, err))
+	}
+
+	return val, nil
 }

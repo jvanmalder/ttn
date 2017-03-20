@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -32,6 +32,7 @@ function Decoder(bytes, port) {
   INFO No encoder function
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 0, 0)
 
 		appID := util.GetAppID(ctx)
 

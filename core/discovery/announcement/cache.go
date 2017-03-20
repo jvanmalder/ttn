@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package announcement
@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TheThingsNetwork/ttn/core/storage"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/bluele/gcache"
 )
@@ -40,16 +41,16 @@ func serviceCacheKey(serviceName, serviceID string) string {
 
 // NewCachedAnnouncementStore returns a cache wrapper around the existing store
 func NewCachedAnnouncementStore(store Store, options CacheOptions) Store {
-	serviceCache := gcache.New(options.ServiceCacheSize).Expiration(options.ServiceCacheExpiration).LFU().
+	serviceCache := gcache.New(options.ServiceCacheSize).Expiration(options.ServiceCacheExpiration).LRU().
 		LoaderFunc(func(k interface{}) (interface{}, error) {
 			key := strings.Split(k.(string), ":")
 			return store.Get(key[0], key[1])
 		}).Build()
 
-	listCache := gcache.New(options.ListCacheSize).Expiration(options.ListCacheExpiration).LFU().
+	listCache := gcache.New(options.ListCacheSize).Expiration(options.ListCacheExpiration).LRU().
 		LoaderFunc(func(k interface{}) (interface{}, error) {
 			key := k.(string)
-			announcements, err := store.ListService(key)
+			announcements, err := store.ListService(key, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -68,12 +69,12 @@ func NewCachedAnnouncementStore(store Store, options CacheOptions) Store {
 	}
 }
 
-func (s *cachedAnnouncementStore) List() ([]*Announcement, error) {
+func (s *cachedAnnouncementStore) List(opts *storage.ListOptions) ([]*Announcement, error) {
 	// TODO: We're not using this function. Implement cache when we start using it.
-	return s.backingStore.List()
+	return s.backingStore.List(nil)
 }
 
-func (s *cachedAnnouncementStore) ListService(serviceName string) ([]*Announcement, error) {
+func (s *cachedAnnouncementStore) ListService(serviceName string, opts *storage.ListOptions) ([]*Announcement, error) {
 	l, err := s.listCache.Get(serviceName)
 	if err != nil {
 		return nil, err

@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
@@ -30,16 +30,52 @@ func TestEnqueueDownlink(t *testing.T) {
 		DevID: devID,
 	})
 	a.So(err, ShouldNotBeNil)
-	h.devices.Set(&device.Device{
-		AppID: appID,
-		DevID: devID,
-	})
+	dev := &device.Device{
+		AppID:           appID,
+		DevID:           devID,
+		CurrentDownlink: &types.DownlinkMessage{PayloadRaw: []byte{1, 2, 3, 4}},
+	}
+	h.devices.Set(dev)
 	defer func() {
 		h.devices.Delete(appID, devID)
 	}()
+	queue, _ := h.devices.DownlinkQueue(appID, devID)
+
 	err = h.EnqueueDownlink(&types.DownlinkMessage{
-		AppID: appID,
-		DevID: devID,
+		AppID:      appID,
+		DevID:      devID,
+		PayloadRaw: []byte{0x01},
+		Schedule:   "last",
+	})
+	a.So(err, ShouldBeNil)
+	qLen, _ := queue.Length()
+	a.So(qLen, ShouldEqual, 1)
+	dev, _ = h.devices.Get(appID, devID)
+	a.So(dev.CurrentDownlink, ShouldNotBeNil)
+
+	err = h.EnqueueDownlink(&types.DownlinkMessage{
+		AppID:      appID,
+		DevID:      devID,
+		PayloadRaw: []byte{0x02},
+		Schedule:   "first",
+	})
+	a.So(err, ShouldBeNil)
+	qLen, _ = queue.Length()
+	a.So(qLen, ShouldEqual, 2)
+	dev, _ = h.devices.Get(appID, devID)
+	a.So(dev.CurrentDownlink, ShouldNotBeNil)
+
+	err = h.EnqueueDownlink(&types.DownlinkMessage{
+		AppID:    appID,
+		DevID:    devID,
+		Schedule: "random",
+	})
+	a.So(err, ShouldNotBeNil)
+
+	err = h.EnqueueDownlink(&types.DownlinkMessage{
+		AppID:    appID,
+		DevID:    devID,
+		Schedule: "replace",
 		PayloadFields: map[string]interface{}{
 			"string": "hello!",
 			"int":    42,
@@ -47,9 +83,14 @@ func TestEnqueueDownlink(t *testing.T) {
 		},
 	})
 	a.So(err, ShouldBeNil)
-	dev, _ := h.devices.Get(appID, devID)
-	a.So(dev.NextDownlink, ShouldNotBeEmpty)
-	a.So(dev.NextDownlink.PayloadFields, ShouldHaveLength, 3)
+	qLen, _ = queue.Length()
+	a.So(qLen, ShouldEqual, 1)
+	dev, _ = h.devices.Get(appID, devID)
+	a.So(dev.CurrentDownlink, ShouldBeNil)
+
+	downlink, _ := queue.Next()
+	a.So(downlink, ShouldNotBeNil)
+	a.So(downlink.PayloadFields, ShouldHaveLength, 3)
 }
 
 func TestHandleDownlink(t *testing.T) {
@@ -67,6 +108,7 @@ func TestHandleDownlink(t *testing.T) {
 		downlink:     make(chan *pb_broker.DownlinkMessage),
 		mqttEvent:    make(chan *types.DeviceEvent, 10),
 	}
+	h.InitStatus()
 	// Neither payload nor Fields provided : ERROR
 	err = h.HandleDownlink(&types.DownlinkMessage{
 		AppID: appID,

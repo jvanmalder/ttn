@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package storage
@@ -105,6 +105,16 @@ func TestRedisKVStore(t *testing.T) {
 		a.So(err, ShouldNotBeNil)
 	}
 
+	// Set
+	{
+		err := s.Set("test", "other")
+		a.So(err, ShouldBeNil)
+
+		name, err := c.Get("test-redis-kv-store:test").Result()
+		a.So(err, ShouldBeNil)
+		a.So(name, ShouldEqual, "other")
+	}
+
 	// Update Existing
 	{
 		err := s.Update("test", "updated")
@@ -115,13 +125,7 @@ func TestRedisKVStore(t *testing.T) {
 		a.So(name, ShouldEqual, "updated")
 	}
 
-	// Delete Non-Existing
-	{
-		err := s.Delete("not-there")
-		a.So(err, ShouldNotBeNil)
-	}
-
-	// Delete Existing
+	// Delete
 	{
 		err := s.Delete("test")
 		a.So(err, ShouldBeNil)

@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
@@ -31,6 +31,7 @@ func TestHandleUplink(t *testing.T) {
 		devices:      device.NewRedisDeviceStore(GetRedisClient(), "handler-test-handle-uplink"),
 		applications: application.NewRedisApplicationStore(GetRedisClient(), "handler-test-handle-uplink"),
 	}
+	h.InitStatus()
 	dev := &device.Device{
 		AppID:  appID,
 		DevID:  devID,
@@ -119,10 +120,8 @@ func TestHandleUplink(t *testing.T) {
 	a.So(err, ShouldBeNil)
 	wg.WaitFor(50 * time.Millisecond)
 
-	dev.StartUpdate()
-	dev.NextDownlink = &types.DownlinkMessage{
-		PayloadRaw: []byte{0xaa, 0xbc},
-	}
+	queue, _ := h.devices.DownlinkQueue(appID, devID)
+	queue.PushFirst(&types.DownlinkMessage{PayloadRaw: []byte{0xaa, 0xbc}})
 
 	// Test Uplink, Data downlink needed
 	h.devices.Set(dev)
@@ -142,5 +141,36 @@ func TestHandleUplink(t *testing.T) {
 	wg.WaitFor(50 * time.Millisecond)
 
 	dev, _ = h.devices.Get(appID, devID)
-	a.So(dev.NextDownlink, ShouldBeNil)
+	qLen, _ := queue.Length()
+	a.So(qLen, ShouldEqual, 0)
+	a.So(dev.CurrentDownlink, ShouldNotBeNil)
+	a.So(dev.CurrentDownlink.PayloadRaw, ShouldResemble, []byte{0xaa, 0xbc})
+
+	dev.StartUpdate()
+	dev.CurrentDownlink = &types.DownlinkMessage{PayloadRaw: []byte{0xaa, 0xbc}, Confirmed: true}
+	queue.PushFirst(&types.DownlinkMessage{PayloadRaw: []byte{0x12, 0x34}})
+
+	// Test Uplink, Data downlink needed
+	h.devices.Set(dev)
+	wg.Add(2)
+	go func() {
+		<-h.mqttUp
+		wg.Done()
+	}()
+	go func() {
+		dl := <-h.downlink
+		a.So(dl.Payload, ShouldResemble, []byte{160, 4, 3, 2, 1, 16, 0, 0, 10, 102, 230, 154, 218, 17, 187}) // The confirmed downlink with FPending on
+		wg.Done()
+	}()
+	downlink.Payload = downlinkEmpty
+	err = h.HandleUplink(uplink)
+	a.So(err, ShouldBeNil)
+	wg.WaitFor(50 * time.Millisecond)
+
+	dev, _ = h.devices.Get(appID, devID)
+	next, _ := queue.Next()
+	a.So(next, ShouldNotBeNil)
+	a.So(next.PayloadRaw, ShouldResemble, []byte{0x12, 0x34})
+	a.So(dev.CurrentDownlink, ShouldNotBeNil)
+	a.So(dev.CurrentDownlink.PayloadRaw, ShouldResemble, []byte{0xaa, 0xbc})
 }

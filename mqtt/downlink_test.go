@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package mqtt
@@ -17,7 +17,7 @@ import (
 
 func TestPublishDownlink(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
+	c := NewClient(getLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
 	c.Connect()
 	defer c.Disconnect()
 
@@ -35,7 +35,7 @@ func TestPublishDownlink(t *testing.T) {
 
 func TestSubscribeDeviceDownlink(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
+	c := NewClient(getLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
 	c.Connect()
 	defer c.Disconnect()
 
@@ -52,7 +52,7 @@ func TestSubscribeDeviceDownlink(t *testing.T) {
 
 func TestSubscribeAppDownlink(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
+	c := NewClient(getLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
 	c.Connect()
 	defer c.Disconnect()
 
@@ -69,7 +69,7 @@ func TestSubscribeAppDownlink(t *testing.T) {
 
 func TestSubscribeDownlink(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
+	c := NewClient(getLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
 	c.Connect()
 	defer c.Disconnect()
 
@@ -86,7 +86,7 @@ func TestSubscribeDownlink(t *testing.T) {
 
 func TestPubSubDownlink(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
+	c := NewClient(getLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
 	c.Connect()
 	defer c.Disconnect()
 
@@ -117,7 +117,7 @@ func TestPubSubDownlink(t *testing.T) {
 
 func TestPubSubAppDownlink(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
+	c := NewClient(getLogger(t, "Test"), "test", "", "", fmt.Sprintf("tcp://%s", host))
 	c.Connect()
 	defer c.Disconnect()
 

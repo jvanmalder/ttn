@@ -2,6 +2,10 @@
 
 ApplicationManager manages application and device registrations on the Handler
 
+To protect our quality of service, you can make up to 5000 calls to the
+ApplicationManager API per hour. Once you go over the rate limit, you will
+receive an error response.
+
 ## Methods
 
 ### `RegisterApplication`
@@ -139,8 +143,12 @@ GetDevice returns the device with the given identifier (app_id and dev_id)
 
 ```json
 {
+  "altitude": 0,
   "app_id": "some-app-id",
+  "description": "Some description of the device",
   "dev_id": "some-dev-id",
+  "latitude": 52.375,
+  "longitude": 4.887,
   "lorawan_device": {
     "activation_constraints": "local",
     "app_eui": "0102030405060708",
@@ -178,8 +186,12 @@ SetDevice creates or updates a device. All fields must be supplied.
 
 ```json
 {
+  "altitude": 0,
   "app_id": "some-app-id",
+  "description": "Some description of the device",
   "dev_id": "some-dev-id",
+  "latitude": 52.375,
+  "longitude": 4.887,
   "lorawan_device": {
     "activation_constraints": "local",
     "app_eui": "0102030405060708",
@@ -256,8 +268,12 @@ GetDevicesForApplication returns all devices that belong to the application with
 {
   "devices": [
     {
+      "altitude": 0,
       "app_id": "some-app-id",
+      "description": "Some description of the device",
       "dev_id": "some-dev-id",
+      "latitude": 52.375,
+      "longitude": 4.887,
       "lorawan_device": {
         "activation_constraints": "local",
         "app_eui": "0102030405060708",
@@ -281,17 +297,24 @@ GetDevicesForApplication returns all devices that belong to the application with
 
 ### `DryDownlink`
 
-DryUplink simulates processing an uplink message and returns the result
+DryUplink simulates processing a downlink message and returns the result
 
 - Request: [`DryDownlinkMessage`](#handlerdrydownlinkmessage)
 - Response: [`DryDownlinkResult`](#handlerdrydownlinkmessage)
 
 ### `DryUplink`
 
-DryUplink simulates processing a downlink message and returns the result
+DryUplink simulates processing an uplink message and returns the result
 
 - Request: [`DryUplinkMessage`](#handlerdryuplinkmessage)
 - Response: [`DryUplinkResult`](#handlerdryuplinkmessage)
+
+### `SimulateUplink`
+
+SimulateUplink simulates an uplink message
+
+- Request: [`SimulatedUplinkMessage`](#handlersimulateduplinkmessage)
+- Response: [`Empty`](#handlersimulateduplinkmessage)
 
 ## Messages
 
@@ -327,6 +350,10 @@ The Device settings
 | `app_id` | `string` |  |
 | `dev_id` | `string` |  |
 | `lorawan_device` | [`Device`](#lorawandevice) |  |
+| `latitude` | `float` |  |
+| `longitude` | `float` |  |
+| `altitude` | `int32` |  |
+| `description` | `string` |  |
 
 ### `.handler.DeviceIdentifier`
 
@@ -389,6 +416,17 @@ DryUplinkResult is the result from an uplink simulation
 | `function` | `string` | The location where the log was created (what payload function) |
 | `fields` | _repeated_ `string` | A list of JSON-encoded fields that were logged |
 
+### `.handler.SimulatedUplinkMessage`
+
+SimulatedUplinkMessage is a simulated uplink message
+
+| Field Name | Type | Description |
+| ---------- | ---- | ----------- |
+| `app_id` | `string` |  |
+| `dev_id` | `string` |  |
+| `payload` | `bytes` | The binary payload to use |
+| `port` | `uint32` | The port number |
+
 ### `.lorawan.Device`
 
 | Field Name | Type | Description |
@@ -405,6 +443,6 @@ DryUplinkResult is the result from an uplink simulation
 | `f_cnt_down` | `uint32` | FCntDown is the downlink frame counter for a device session. |
 | `disable_f_cnt_check` | `bool` | The DisableFCntCheck option disables the frame counter check. Disabling this makes the device vulnerable to replay attacks, but makes ABP slightly easier. |
 | `uses32_bit_f_cnt` | `bool` | The Uses32BitFCnt option indicates that the device keeps track of full 32 bit frame counters. As only the 16 lsb are actually transmitted, the 16 msb will have to be inferred. |
-| `activation_constraints` | `string` | The ActivationContstraints are used to allocate a device address for a device. There are different prefixes for `otaa`, `abp`, `world`, `local`, `private`, `testing`. |
+| `activation_constraints` | `string` | The ActivationContstraints are used to allocate a device address for a device (comma-separated). There are different prefixes for `otaa`, `abp`, `world`, `local`, `private`, `testing`. |
 | `last_seen` | `int64` | When the device was last seen (Unix nanoseconds) |
 

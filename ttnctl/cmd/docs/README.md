@@ -8,7 +8,6 @@ Control The Things Network from the command line.
       --auth-server string         The address of the OAuth 2.0 server (default "https://account.thethingsnetwork.org")
       --config string              config file (default is $HOME/.ttnctl.yml)
       --data string                directory where ttnctl stores data (default is $HOME/.ttnctl)
-  -d, --debug                      Enable debug mode
       --discovery-address string   The address of the Discovery server (default "discover.thethingsnetwork.org:1900")
       --handler-id string          The ID of the TTN Handler as announced in the Discovery server (default "ttn-handler-eu")
       --mqtt-address string        The address of the MQTT broker (default "eu.thethings.network:1883")
@@ -48,7 +47,7 @@ $ ttnctl applications add test "Test application"
 
 ttnctl devices delete can be used to delete an application.
 
-**Usage:** `ttnctl applications delete`
+**Usage:** `ttnctl applications delete [AppID]`
 
 ### ttnctl applications info
 
@@ -154,12 +153,21 @@ function Decoder(bytes, port) {
 
   return decoded;
 }
+
+Do you want to test the payload functions? (Y/n)
+Y
+
+Payload: 12 34
+Port: 1
+
+  INFO Function tested successfully
+
   INFO Updated application                      AppID=test
 ```
 
 ### ttnctl applications register
 
-ttnctl register can be used to register this application with the handler.
+ttnctl applications register can be used to register this application with the handler.
 
 **Usage:** `ttnctl applications register`
 
@@ -176,7 +184,7 @@ $ ttnctl applications register
 
 ttnctl applications select can be used to select the application to use in next commands.
 
-**Usage:** `ttnctl applications select`
+**Usage:** `ttnctl applications select [AppID [AppEUI]]`
 
 **Example**
 
@@ -320,7 +328,7 @@ $ ttnctl devices personalize test
 
 ttnctl devices register can be used to register a new device.
 
-**Usage:** `ttnctl devices register [Device ID] [DevEUI] [AppKey]`
+**Usage:** `ttnctl devices register [Device ID] [DevEUI] [AppKey] [Lat,Long]`
 
 **Example**
 
@@ -345,15 +353,19 @@ ttnctl devices set can be used to set properties of a device.
 ```
       --16-bit-fcnt          Use 16 bit FCnt
       --32-bit-fcnt          Use 32 bit FCnt (default)
+      --altitude int32       Set altitude
       --app-eui string       Set AppEUI
       --app-key string       Set AppKey
       --app-s-key string     Set AppSKey
+      --description string   Set Description
       --dev-addr string      Set DevAddr
       --dev-eui string       Set DevEUI
       --disable-fcnt-check   Disable FCnt check
       --enable-fcnt-check    Enable FCnt check (default)
       --fcnt-down int        Set FCnt Down (default -1)
       --fcnt-up int          Set FCnt Up (default -1)
+      --latitude float32     Set latitude
+      --longitude float32    Set longitude
       --nwk-s-key string     Set NwkSKey
       --override             Override protection against breaking changes
 ```
@@ -368,6 +380,18 @@ $ ttnctl devices set test --fcnt-up 0 --fcnt-down 0
   INFO Updated device                           AppID=test DevID=test
 ```
 
+### ttnctl devices simulate
+
+ttnctl devices simulate can be used to simulate an uplink message for a device.
+
+**Usage:** `ttnctl devices simulate [Device ID] [Payload]`
+
+**Options**
+
+```
+      --port uint32   Port number (default 1)
+```
+
 ## ttnctl downlink
 
 ttnctl downlink can be used to send a downlink message to a device.
@@ -377,6 +401,7 @@ ttnctl downlink can be used to send a downlink message to a device.
 **Options**
 
 ```
+      --confirmed   Confirmed downlink
       --fport int   FPort for downlink (default 1)
       --json        Provide the payload as JSON
 ```

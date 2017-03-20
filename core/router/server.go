@@ -1,148 +1,163 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package router
 
 import (
 	"fmt"
-	"io"
+	"time"
 
 	"github.com/TheThingsNetwork/go-account-lib/claims"
 	"github.com/TheThingsNetwork/ttn/api"
+	pb_gateway "github.com/TheThingsNetwork/ttn/api/gateway"
+	"github.com/TheThingsNetwork/ttn/api/ratelimit"
 	pb "github.com/TheThingsNetwork/ttn/api/router"
 	"github.com/TheThingsNetwork/ttn/core/router/gateway"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
-	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/TheThingsNetwork/ttn/utils/random"
 	"github.com/spf13/viper"
 	"golang.org/x/net/context" // See https://github.com/grpc/grpc-go/issues/711"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 )
 
 type routerRPC struct {
 	router *router
+	pb.RouterStreamServer
+
+	uplinkRate *ratelimit.Registry
+	statusRate *ratelimit.Registry
 }
 
-func (r *routerRPC) gatewayFromContext(ctx context.Context) (gtw *gateway.Gateway, err error) {
-	md, err := api.MetadataFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+func (r *routerRPC) gatewayFromMetadata(md metadata.MD) (gtw *gateway.Gateway, err error) {
 	gatewayID, err := api.IDFromMetadata(md)
 	if err != nil {
 		return nil, err
 	}
 
+	authErr := errors.NewErrPermissionDenied("Gateway not authenticated")
+	authenticated := false
 	token, _ := api.TokenFromMetadata(md)
 
-	if !viper.GetBool("router.skip-verify-gateway-token") {
-		if token == "" {
-			return nil, errors.NewErrPermissionDenied("No gateway token supplied")
-		}
+	if token != "" {
 		if r.router.TokenKeyProvider == nil {
 			return nil, errors.NewErrInternal("No token provider configured")
 		}
-		claims, err := claims.FromToken(r.router.TokenKeyProvider, token)
+		claims, err := claims.FromGatewayToken(r.router.TokenKeyProvider, token)
 		if err != nil {
-			return nil, errors.NewErrPermissionDenied(fmt.Sprintf("Gateway token invalid: %s", err.Error()))
-		}
-		if claims.Type != "gateway" || claims.Subject != gatewayID {
-			return nil, errors.NewErrPermissionDenied("Gateway token not consistent")
+			authErr = errors.NewErrPermissionDenied(fmt.Sprintf("Gateway token invalid: %s", err))
+		} else {
+			if claims.Subject != gatewayID {
+				authErr = errors.NewErrPermissionDenied(fmt.Sprintf("Token subject \"%s\" not consistent with gateway ID \"%s\"", claims.Subject, gatewayID))
+			} else {
+				authErr = nil
+				authenticated = true
+			}
 		}
 	}
 
+	if authErr != nil && !viper.GetBool("router.skip-verify-gateway-token") {
+		return nil, authErr
+	}
+
 	gtw = r.router.getGateway(gatewayID)
-	gtw.SetToken(token)
+	gtw.SetAuth(token, authenticated)
 
 	return gtw, nil
 }
 
-// GatewayStatus implements RouterServer interface (github.com/TheThingsNetwork/ttn/api/router)
-func (r *routerRPC) GatewayStatus(stream pb.Router_GatewayStatusServer) error {
-	gateway, err := r.gatewayFromContext(stream.Context())
-	if err != nil {
-		return errors.BuildGRPCError(err)
-	}
-
-	for {
-		status, err := stream.Recv()
-		if err == io.EOF {
-			return stream.SendAndClose(&empty.Empty{})
-		}
-		if err != nil {
-			return err
-		}
-		if err := status.Validate(); err != nil {
-			return errors.BuildGRPCError(errors.Wrap(err, "Invalid Gateway Status"))
-		}
-		go r.router.HandleGatewayStatus(gateway.ID, status)
-	}
+func (r *routerRPC) gatewayFromContext(ctx context.Context) (gtw *gateway.Gateway, err error) {
+	md := api.MetadataFromContext(ctx)
+	return r.gatewayFromMetadata(md)
 }
 
-// Uplink implements RouterServer interface (github.com/TheThingsNetwork/ttn/api/router)
-func (r *routerRPC) Uplink(stream pb.Router_UplinkServer) error {
-	gateway, err := r.gatewayFromContext(stream.Context())
+func (r *routerRPC) getUplink(md metadata.MD) (ch chan *pb.UplinkMessage, err error) {
+	gateway, err := r.gatewayFromMetadata(md)
 	if err != nil {
-		return errors.BuildGRPCError(err)
+		return nil, err
 	}
-
-	for {
-		uplink, err := stream.Recv()
-		if err == io.EOF {
-			return stream.SendAndClose(&empty.Empty{})
-		}
-		if err != nil {
-			return err
-		}
-		if err := uplink.Validate(); err != nil {
-			return errors.BuildGRPCError(errors.Wrap(err, "Invalid Uplink"))
-		}
-		go r.router.HandleUplink(gateway.ID, uplink)
-	}
-}
-
-// Subscribe implements RouterServer interface (github.com/TheThingsNetwork/ttn/api/router)
-func (r *routerRPC) Subscribe(req *pb.SubscribeRequest, stream pb.Router_SubscribeServer) error {
-	gateway, err := r.gatewayFromContext(stream.Context())
-	if err != nil {
-		return errors.BuildGRPCError(err)
-	}
-
-	downlinkChannel, err := r.router.SubscribeDownlink(gateway.ID)
-	if err != nil {
-		return errors.BuildGRPCError(err)
-	}
-	defer r.router.UnsubscribeDownlink(gateway.ID)
-
-	for {
-		if downlinkChannel == nil {
-			return nil
-		}
-		select {
-		case <-stream.Context().Done():
-			return stream.Context().Err()
-		case downlink := <-downlinkChannel:
-			if err := stream.Send(downlink); err != nil {
-				return err
+	ch = make(chan *pb.UplinkMessage)
+	go func() {
+		for uplink := range ch {
+			if waitTime := r.uplinkRate.Wait(gateway.ID); waitTime != 0 {
+				r.router.Ctx.WithField("GatewayID", gateway.ID).WithField("Wait", waitTime).Warn("Gateway reached uplink rate limit")
+				time.Sleep(waitTime)
 			}
+			r.router.HandleUplink(gateway.ID, uplink)
+
 		}
+	}()
+	return
+}
+
+func (r *routerRPC) getGatewayStatus(md metadata.MD) (ch chan *pb_gateway.Status, err error) {
+	gateway, err := r.gatewayFromMetadata(md)
+	if err != nil {
+		return nil, err
 	}
+	ch = make(chan *pb_gateway.Status)
+	go func() {
+		for status := range ch {
+			if waitTime := r.statusRate.Wait(gateway.ID); waitTime != 0 {
+				r.router.Ctx.WithField("GatewayID", gateway.ID).WithField("Wait", waitTime).Warn("Gateway reached status rate limit")
+				time.Sleep(waitTime)
+			}
+			r.router.HandleGatewayStatus(gateway.ID, status)
+		}
+	}()
+	return
+}
+
+func (r *routerRPC) getDownlink(md metadata.MD) (ch <-chan *pb.DownlinkMessage, cancel func(), err error) {
+	gateway, err := r.gatewayFromMetadata(md)
+	if err != nil {
+		return nil, nil, err
+	}
+	subscriptionID := random.String(10)
+	ch = make(chan *pb.DownlinkMessage)
+	cancel = func() {
+		r.router.UnsubscribeDownlink(gateway.ID, subscriptionID)
+	}
+	downlinkChannel, err := r.router.SubscribeDownlink(gateway.ID, subscriptionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return downlinkChannel, cancel, nil
 }
 
 // Activate implements RouterServer interface (github.com/TheThingsNetwork/ttn/api/router)
 func (r *routerRPC) Activate(ctx context.Context, req *pb.DeviceActivationRequest) (*pb.DeviceActivationResponse, error) {
 	gateway, err := r.gatewayFromContext(ctx)
 	if err != nil {
-		return nil, errors.BuildGRPCError(err)
+		return nil, err
 	}
 	if err := req.Validate(); err != nil {
-		return nil, errors.BuildGRPCError(errors.Wrap(err, "Invalid Activation Request"))
+		return nil, errors.Wrap(err, "Invalid Activation Request")
+	}
+	if r.uplinkRate.Limit(gateway.ID) {
+		return nil, grpc.Errorf(codes.ResourceExhausted, "Gateway reached uplink rate limit")
 	}
 	return r.router.HandleActivation(gateway.ID, req)
 }
 
 // RegisterRPC registers this router as a RouterServer (github.com/TheThingsNetwork/ttn/api/router)
 func (r *router) RegisterRPC(s *grpc.Server) {
-	server := &routerRPC{r}
+	server := &routerRPC{router: r}
+	server.SetLogger(r.Ctx)
+	server.UplinkChanFunc = server.getUplink
+	server.DownlinkChanFunc = server.getDownlink
+	server.GatewayStatusChanFunc = server.getGatewayStatus
+
+	// TODO: Monitor actual rates and configure sensible limits
+	//
+	// The current values are based on the following:
+	// - 20 byte messages on all 6 orthogonal SFs at the same time -> ~1500 msgs/minute
+	// - 8 channels at 5% utilization: 600 msgs/minute
+	// - let's double that and round it to 1500/minute
+
+	server.uplinkRate = ratelimit.NewRegistry(1500, time.Minute) // includes activations
+	server.statusRate = ratelimit.NewRegistry(10, time.Minute)   // 10 per minute (pkt fwd default is 2 per minute)
+
 	pb.RegisterRouterServer(s, server)
 }

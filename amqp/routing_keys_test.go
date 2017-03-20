@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package amqp
@@ -52,6 +52,22 @@ func TestDeviceKeyString(t *testing.T) {
 	}
 
 	expected := "appid-1.devices.devid-1.down"
+
+	got := key.String()
+
+	a.So(got, ShouldResemble, expected)
+}
+
+func TestDeviceEventsKeyString(t *testing.T) {
+	a := New(t)
+
+	key := &DeviceKey{
+		AppID: "appid-1",
+		DevID: "devid-1",
+		Type:  DeviceEvents,
+	}
+
+	expected := "appid-1.devices.devid-1.events.#"
 
 	got := key.String()
 

@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package announcement
@@ -65,7 +65,6 @@ func TestCachedAnnouncementStore(t *testing.T) {
 	err = s.AddMetadata("handler", "handler1",
 		AppEUIMetadata{AppEUI: appEUI},
 		AppIDMetadata{AppID: "AppID"},
-		OtherMetadata{},
 	)
 	a.So(err, ShouldBeNil)
 
@@ -83,13 +82,12 @@ func TestCachedAnnouncementStore(t *testing.T) {
 		AppEUIMetadata{AppEUI: appEUI},
 		AppIDMetadata{AppID: "AppID"},
 		AppIDMetadata{AppID: "OtherAppID"},
-		OtherMetadata{},
 	)
 	a.So(err, ShouldBeNil)
 
 	metadata, err := s.GetMetadata("handler", "handler2")
 	a.So(err, ShouldBeNil)
-	a.So(metadata, ShouldHaveLength, 4)
+	a.So(metadata, ShouldHaveLength, 3)
 
 	err = s.AddMetadata("handler", "handler2",
 		AppEUIMetadata{AppEUI: appEUI},
@@ -99,7 +97,7 @@ func TestCachedAnnouncementStore(t *testing.T) {
 
 	metadata, err = s.GetMetadata("handler", "handler2")
 	a.So(err, ShouldBeNil)
-	a.So(metadata, ShouldHaveLength, 4)
+	a.So(metadata, ShouldHaveLength, 3)
 
 	handler, err = s.GetForAppEUI(appEUI)
 	a.So(err, ShouldBeNil)
@@ -114,24 +112,22 @@ func TestCachedAnnouncementStore(t *testing.T) {
 	err = s.RemoveMetadata("handler", "handler1",
 		AppEUIMetadata{AppEUI: appEUI},
 		AppIDMetadata{AppID: "AppID"},
-		OtherMetadata{},
 	)
 	a.So(err, ShouldBeNil)
 
 	err = s.RemoveMetadata("handler", "handler2",
 		AppEUIMetadata{AppEUI: appEUI},
 		AppIDMetadata{AppID: "AppID"},
-		OtherMetadata{},
 	)
 	a.So(err, ShouldBeNil)
 
 	// List
-	announcements, err := s.List()
+	announcements, err := s.List(nil)
 	a.So(err, ShouldBeNil)
 	a.So(announcements, ShouldHaveLength, 3)
 
 	// List
-	announcements, err = s.ListService("router")
+	announcements, err = s.ListService("router", nil)
 	a.So(err, ShouldBeNil)
 	a.So(announcements, ShouldHaveLength, 1)
 

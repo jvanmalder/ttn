@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package gateway
@@ -130,7 +130,7 @@ func TestScheduleSubscribe(t *testing.T) {
 
 	go func() {
 		var i int
-		for out := range s.Subscribe() {
+		for out := range s.Subscribe("") {
 			switch i {
 			case 0:
 				a.So(out, ShouldEqual, downlink2)
@@ -152,7 +152,7 @@ func TestScheduleSubscribe(t *testing.T) {
 
 	go func() {
 		<-time.After(400 * time.Millisecond)
-		s.Stop()
+		s.Stop("")
 	}()
 
 	<-time.After(500 * time.Millisecond)

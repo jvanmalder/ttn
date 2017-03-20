@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -7,22 +7,23 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	cliHandler "github.com/TheThingsNetwork/go-utils/handlers/cli"
-	"github.com/TheThingsNetwork/ttn/api"
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
+	"github.com/TheThingsNetwork/go-utils/log/apex"
+	"github.com/TheThingsNetwork/go-utils/log/grpc"
 	"github.com/TheThingsNetwork/ttn/ttnctl/util"
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
+	"google.golang.org/grpc/grpclog"
 )
 
 var cfgFile string
 var dataDir string
 var debug bool
 
-var ctx log.Interface
+var ctx ttnlog.Interface
 
 // RootCmd is the entrypoint for ttnctl
 var RootCmd = &cobra.Command{
@@ -31,23 +32,21 @@ var RootCmd = &cobra.Command{
 	Long:  `ttnctl controls The Things Network from the command line.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		var logLevel = log.InfoLevel
-		if debug {
+		if viper.GetBool("debug") {
 			logLevel = log.DebugLevel
 		}
-		ctx = &log.Logger{
+
+		ctx = apex.Wrap(&log.Logger{
 			Level:   logLevel,
 			Handler: cliHandler.New(os.Stdout),
-		}
+		})
 
-		if debug {
+		if viper.GetBool("debug") {
 			util.PrintConfig(ctx, true)
 		}
 
-		api.DialOptions = append(api.DialOptions, grpc.WithBlock())
-		api.DialOptions = append(api.DialOptions, grpc.WithTimeout(2*time.Second))
-
-		api.SetLogger(api.Apex(ctx))
-
+		ttnlog.Set(ctx)
+		grpclog.SetLogger(grpc.Wrap(ttnlog.Get()))
 	},
 }
 
@@ -64,7 +63,6 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ttnctl.yml)")
-	RootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug mode")
 
 	RootCmd.PersistentFlags().StringVar(&dataDir, "data", "", "directory where ttnctl stores data (default is $HOME/.ttnctl)")
 	viper.BindPFlag("data", RootCmd.PersistentFlags().Lookup("data"))
@@ -91,7 +89,17 @@ func init() {
 	viper.BindPFlag("auth-server", RootCmd.PersistentFlags().Lookup("auth-server"))
 
 	viper.SetDefault("gateway-id", "dev")
-	viper.SetDefault("gateway-token", "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJ0dG4tYWNjb3VudC1wcmV2aWV3Iiwic3ViIjoiZGV2IiwidHlwZSI6ImdhdGV3YXkiLCJpYXQiOjE0NzY0Mzk0Mzh9.kEOiLe9j4qRElZOt_bAXmZlva1nV6duIL0MDVa3bx2SEWC3qredaBWXWq4FmV4PKeI_zndovQtOoValH0B_6MW6vXuWL1wYzV6foTH5gQdxmn-iuQ1AmAIYbZeyHl9a-NPqDgkXLwKmo2iB1hUi9wV6HXfIOalguDtGJbmMfJ2tommsgmuNCXd-2zqhStSy8ArpROFXPm7voGDTcgm4hfchr7zhn-Er76R-eJa3RZ1Seo9BsiWrQ0N3VDSuh7ycCakZtkaLD4OTutAemcbzbrNJSOCvvZr8Asn-RmMkjKUdTN4Bgn3qlacIQ9iZikPLT8XyjFkj-8xjs3KAobWg40A")
+	viper.SetDefault("gateway-token", "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0dG4tYWNjb3VudC12MiIsInN1YiI6ImRldiIsInR5cGUiOiJnYXRld2F5IiwiaWF0IjoxNDgyNDIxMTEyfQ.obhobeREK9bOpi-YO5lZ8rpW4CkXZUSrRBRIjbFThhvAsj_IjkFmCovIVLsGlaDVEKciZmXmWnY-6ZEgUEu6H6_GG4AD6HNHXnT0o0XSPgf5_Bc6dpzuI5FCEpcELihpBMaW3vPUt29NecLo4LvZGAuOllUYKHsZi34GYnR6PFlOgi40drN_iU_8aMCxFxm6ki83QlcyHEmDAh5GAGIym0qnUDh5_L1VE_upmoR72j8_l5lSuUA2_w8CH5_Z9CrXlTKQ2XQXsQXprkhbmOKKC8rfbTjRsB_nxObu0qcTWLH9tMd4KGFkJ20mdMw38fg2Vt7eLrkU1R1kl6a65eo6LZi0JvRSsboVZFWLwI02Azkwsm903K5n1r25Wq2oiwPJpNq5vsYLdYlb-WdAPsEDnfQGLPaqxd5we8tDcHsF4C1JHTwLsKy2Sqj8WNVmLgXiFER0DNfISDgS5SYdOxd9dUf5lTlIYdJU6aG1yYLSEhq80QOcdhCqNMVu1uRIucn_BhHbKo_LCMmD7TGppaXcQ2tCL3qHQaW8GCoun_UPo4C67LIMYUMfwd_h6CaykzlZvDlLa64ZiQ3XPmMcT_gVT7MJS2jGPbtJmcLHAVa5NZLv2d6WZfutPAocl3bYrY-sQmaSwJrzakIb2D-DNsg0qBJAZcm2o021By8U4bKAAFQ")
+}
+
+func assertArgsLength(cmd *cobra.Command, args []string, min, max int) {
+	if len(args) < min || len(args) > max {
+		ctx.Errorf(`Invalid number of arguments to command "%s"`, cmd.CommandPath())
+		fmt.Println()
+		cmd.Example = ""
+		cmd.UsageFunc()(cmd)
+		os.Exit(1)
+	}
 }
 
 func printKV(key, t interface{}) {
@@ -106,6 +114,13 @@ func printKV(key, t interface{}) {
 	if val != "" {
 		fmt.Printf("%20s: %s\n", key, val)
 	}
+}
+
+func crop(in string, length int) string {
+	if len(in) > length {
+		return in[:length]
+	}
+	return in
 }
 
 func confirm(prompt string) bool {
@@ -140,6 +155,8 @@ func initConfig() {
 	viper.SetEnvPrefix("ttnctl") // set environment prefix
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	viper.AutomaticEnv()
+
+	viper.BindEnv("debug")
 
 	// If a config file is found, read it in.
 	if _, err := os.Stat(cfgFile); err == nil {

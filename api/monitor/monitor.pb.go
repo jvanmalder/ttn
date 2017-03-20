@@ -12,13 +12,12 @@
 */
 package monitor
 
-import proto "github.com/golang/protobuf/proto"
+import proto "github.com/gogo/protobuf/proto"
 import fmt "fmt"
 import math "math"
 import gateway "github.com/TheThingsNetwork/ttn/api/gateway"
 import router "github.com/TheThingsNetwork/ttn/api/router"
 import broker "github.com/TheThingsNetwork/ttn/api/broker"
-import handler "github.com/TheThingsNetwork/ttn/api/handler"
 import google_protobuf1 "github.com/golang/protobuf/ptypes/empty"
 
 import (
@@ -35,7 +34,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
@@ -51,9 +50,8 @@ type MonitorClient interface {
 	GatewayStatus(ctx context.Context, opts ...grpc.CallOption) (Monitor_GatewayStatusClient, error)
 	GatewayUplink(ctx context.Context, opts ...grpc.CallOption) (Monitor_GatewayUplinkClient, error)
 	GatewayDownlink(ctx context.Context, opts ...grpc.CallOption) (Monitor_GatewayDownlinkClient, error)
-	RouterStatus(ctx context.Context, opts ...grpc.CallOption) (Monitor_RouterStatusClient, error)
-	BrokerStatus(ctx context.Context, opts ...grpc.CallOption) (Monitor_BrokerStatusClient, error)
-	HandlerStatus(ctx context.Context, opts ...grpc.CallOption) (Monitor_HandlerStatusClient, error)
+	BrokerUplink(ctx context.Context, opts ...grpc.CallOption) (Monitor_BrokerUplinkClient, error)
+	BrokerDownlink(ctx context.Context, opts ...grpc.CallOption) (Monitor_BrokerDownlinkClient, error)
 }
 
 type monitorClient struct {
@@ -166,30 +164,30 @@ func (x *monitorGatewayDownlinkClient) CloseAndRecv() (*google_protobuf1.Empty, 
 	return m, nil
 }
 
-func (c *monitorClient) RouterStatus(ctx context.Context, opts ...grpc.CallOption) (Monitor_RouterStatusClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Monitor_serviceDesc.Streams[3], c.cc, "/monitor.Monitor/RouterStatus", opts...)
+func (c *monitorClient) BrokerUplink(ctx context.Context, opts ...grpc.CallOption) (Monitor_BrokerUplinkClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Monitor_serviceDesc.Streams[3], c.cc, "/monitor.Monitor/BrokerUplink", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &monitorRouterStatusClient{stream}
+	x := &monitorBrokerUplinkClient{stream}
 	return x, nil
 }
 
-type Monitor_RouterStatusClient interface {
-	Send(*router.Status) error
+type Monitor_BrokerUplinkClient interface {
+	Send(*broker.DeduplicatedUplinkMessage) error
 	CloseAndRecv() (*google_protobuf1.Empty, error)
 	grpc.ClientStream
 }
 
-type monitorRouterStatusClient struct {
+type monitorBrokerUplinkClient struct {
 	grpc.ClientStream
 }
 
-func (x *monitorRouterStatusClient) Send(m *router.Status) error {
+func (x *monitorBrokerUplinkClient) Send(m *broker.DeduplicatedUplinkMessage) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *monitorRouterStatusClient) CloseAndRecv() (*google_protobuf1.Empty, error) {
+func (x *monitorBrokerUplinkClient) CloseAndRecv() (*google_protobuf1.Empty, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
@@ -200,64 +198,30 @@ func (x *monitorRouterStatusClient) CloseAndRecv() (*google_protobuf1.Empty, err
 	return m, nil
 }
 
-func (c *monitorClient) BrokerStatus(ctx context.Context, opts ...grpc.CallOption) (Monitor_BrokerStatusClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Monitor_serviceDesc.Streams[4], c.cc, "/monitor.Monitor/BrokerStatus", opts...)
+func (c *monitorClient) BrokerDownlink(ctx context.Context, opts ...grpc.CallOption) (Monitor_BrokerDownlinkClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Monitor_serviceDesc.Streams[4], c.cc, "/monitor.Monitor/BrokerDownlink", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &monitorBrokerStatusClient{stream}
+	x := &monitorBrokerDownlinkClient{stream}
 	return x, nil
 }
 
-type Monitor_BrokerStatusClient interface {
-	Send(*broker.Status) error
+type Monitor_BrokerDownlinkClient interface {
+	Send(*broker.DownlinkMessage) error
 	CloseAndRecv() (*google_protobuf1.Empty, error)
 	grpc.ClientStream
 }
 
-type monitorBrokerStatusClient struct {
+type monitorBrokerDownlinkClient struct {
 	grpc.ClientStream
 }
 
-func (x *monitorBrokerStatusClient) Send(m *broker.Status) error {
+func (x *monitorBrokerDownlinkClient) Send(m *broker.DownlinkMessage) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *monitorBrokerStatusClient) CloseAndRecv() (*google_protobuf1.Empty, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(google_protobuf1.Empty)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *monitorClient) HandlerStatus(ctx context.Context, opts ...grpc.CallOption) (Monitor_HandlerStatusClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Monitor_serviceDesc.Streams[5], c.cc, "/monitor.Monitor/HandlerStatus", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &monitorHandlerStatusClient{stream}
-	return x, nil
-}
-
-type Monitor_HandlerStatusClient interface {
-	Send(*handler.Status) error
-	CloseAndRecv() (*google_protobuf1.Empty, error)
-	grpc.ClientStream
-}
-
-type monitorHandlerStatusClient struct {
-	grpc.ClientStream
-}
-
-func (x *monitorHandlerStatusClient) Send(m *handler.Status) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *monitorHandlerStatusClient) CloseAndRecv() (*google_protobuf1.Empty, error) {
+func (x *monitorBrokerDownlinkClient) CloseAndRecv() (*google_protobuf1.Empty, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
@@ -274,9 +238,8 @@ type MonitorServer interface {
 	GatewayStatus(Monitor_GatewayStatusServer) error
 	GatewayUplink(Monitor_GatewayUplinkServer) error
 	GatewayDownlink(Monitor_GatewayDownlinkServer) error
-	RouterStatus(Monitor_RouterStatusServer) error
-	BrokerStatus(Monitor_BrokerStatusServer) error
-	HandlerStatus(Monitor_HandlerStatusServer) error
+	BrokerUplink(Monitor_BrokerUplinkServer) error
+	BrokerDownlink(Monitor_BrokerDownlinkServer) error
 }
 
 func RegisterMonitorServer(s *grpc.Server, srv MonitorServer) {
@@ -361,78 +324,52 @@ func (x *monitorGatewayDownlinkServer) Recv() (*router.DownlinkMessage, error) {
 	return m, nil
 }
 
-func _Monitor_RouterStatus_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(MonitorServer).RouterStatus(&monitorRouterStatusServer{stream})
+func _Monitor_BrokerUplink_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(MonitorServer).BrokerUplink(&monitorBrokerUplinkServer{stream})
 }
 
-type Monitor_RouterStatusServer interface {
+type Monitor_BrokerUplinkServer interface {
 	SendAndClose(*google_protobuf1.Empty) error
-	Recv() (*router.Status, error)
+	Recv() (*broker.DeduplicatedUplinkMessage, error)
 	grpc.ServerStream
 }
 
-type monitorRouterStatusServer struct {
+type monitorBrokerUplinkServer struct {
 	grpc.ServerStream
 }
 
-func (x *monitorRouterStatusServer) SendAndClose(m *google_protobuf1.Empty) error {
+func (x *monitorBrokerUplinkServer) SendAndClose(m *google_protobuf1.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *monitorRouterStatusServer) Recv() (*router.Status, error) {
-	m := new(router.Status)
+func (x *monitorBrokerUplinkServer) Recv() (*broker.DeduplicatedUplinkMessage, error) {
+	m := new(broker.DeduplicatedUplinkMessage)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func _Monitor_BrokerStatus_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(MonitorServer).BrokerStatus(&monitorBrokerStatusServer{stream})
+func _Monitor_BrokerDownlink_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(MonitorServer).BrokerDownlink(&monitorBrokerDownlinkServer{stream})
 }
 
-type Monitor_BrokerStatusServer interface {
+type Monitor_BrokerDownlinkServer interface {
 	SendAndClose(*google_protobuf1.Empty) error
-	Recv() (*broker.Status, error)
+	Recv() (*broker.DownlinkMessage, error)
 	grpc.ServerStream
 }
 
-type monitorBrokerStatusServer struct {
+type monitorBrokerDownlinkServer struct {
 	grpc.ServerStream
 }
 
-func (x *monitorBrokerStatusServer) SendAndClose(m *google_protobuf1.Empty) error {
+func (x *monitorBrokerDownlinkServer) SendAndClose(m *google_protobuf1.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *monitorBrokerStatusServer) Recv() (*broker.Status, error) {
-	m := new(broker.Status)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _Monitor_HandlerStatus_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(MonitorServer).HandlerStatus(&monitorHandlerStatusServer{stream})
-}
-
-type Monitor_HandlerStatusServer interface {
-	SendAndClose(*google_protobuf1.Empty) error
-	Recv() (*handler.Status, error)
-	grpc.ServerStream
-}
-
-type monitorHandlerStatusServer struct {
-	grpc.ServerStream
-}
-
-func (x *monitorHandlerStatusServer) SendAndClose(m *google_protobuf1.Empty) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *monitorHandlerStatusServer) Recv() (*handler.Status, error) {
-	m := new(handler.Status)
+func (x *monitorBrokerDownlinkServer) Recv() (*broker.DownlinkMessage, error) {
+	m := new(broker.DownlinkMessage)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -460,18 +397,13 @@ var _Monitor_serviceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 		{
-			StreamName:    "RouterStatus",
-			Handler:       _Monitor_RouterStatus_Handler,
+			StreamName:    "BrokerUplink",
+			Handler:       _Monitor_BrokerUplink_Handler,
 			ClientStreams: true,
 		},
 		{
-			StreamName:    "BrokerStatus",
-			Handler:       _Monitor_BrokerStatus_Handler,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "HandlerStatus",
-			Handler:       _Monitor_HandlerStatus_Handler,
+			StreamName:    "BrokerDownlink",
+			Handler:       _Monitor_BrokerDownlink_Handler,
 			ClientStreams: true,
 		},
 	},
@@ -483,25 +415,23 @@ func init() {
 }
 
 var fileDescriptorMonitor = []byte{
-	// 306 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x94, 0x92, 0xc1, 0x4a, 0xfc, 0x30,
-	0x10, 0xc6, 0xff, 0xfd, 0x1f, 0x5c, 0x08, 0xbb, 0x2e, 0x14, 0x54, 0x58, 0xb1, 0x67, 0x41, 0x48,
-	0x40, 0x2f, 0xeb, 0x82, 0x20, 0xcb, 0x8a, 0x5e, 0xd6, 0x83, 0xae, 0x17, 0x6f, 0xa9, 0xc6, 0xb4,
-	0xb4, 0xcd, 0x94, 0x74, 0x4a, 0xf1, 0x4d, 0x7c, 0x24, 0x8f, 0x3e, 0x82, 0xd4, 0xe7, 0x10, 0xc4,
-	0x26, 0xd3, 0x83, 0x07, 0x8b, 0xa7, 0x8f, 0xc9, 0xe4, 0xfb, 0x75, 0xe6, 0x6b, 0xd8, 0xa9, 0x4e,
-	0x31, 0xa9, 0x63, 0xfe, 0x00, 0x85, 0xd8, 0x24, 0x6a, 0x93, 0xa4, 0x46, 0x57, 0xd7, 0x0a, 0x1b,
-	0xb0, 0x99, 0x40, 0x34, 0x42, 0x96, 0xa9, 0x28, 0xc0, 0xa4, 0x08, 0x96, 0x94, 0x97, 0x16, 0x10,
-	0xc2, 0x91, 0x2f, 0x67, 0x07, 0x74, 0x4f, 0x4b, 0x54, 0x8d, 0x7c, 0x26, 0x75, 0xf7, 0x66, 0xfb,
-	0xd4, 0xb6, 0x50, 0xa3, 0xb2, 0x5e, 0x7e, 0x36, 0x63, 0x0b, 0x99, 0xb2, 0x5e, 0x7c, 0xb3, 0x07,
-	0x27, 0xd2, 0x3c, 0xe6, 0xca, 0x92, 0x92, 0x57, 0x03, 0xe8, 0x5c, 0x89, 0xae, 0x8a, 0xeb, 0x27,
-	0xa1, 0x8a, 0x12, 0xfd, 0x57, 0x8f, 0x3f, 0xff, 0xb3, 0xd1, 0xda, 0x0d, 0x18, 0x2e, 0xd8, 0xe4,
-	0xd2, 0x8d, 0x74, 0x8b, 0x12, 0xeb, 0x2a, 0x9c, 0x72, 0x1a, 0xd1, 0x1d, 0xcc, 0x76, 0xb9, 0x63,
-	0x71, 0x62, 0xf1, 0x8b, 0x6f, 0xd6, 0x61, 0x10, 0x9e, 0xf7, 0xde, 0xbb, 0x32, 0x4f, 0x4d, 0x16,
-	0xee, 0x70, 0xbf, 0x80, 0xab, 0xd7, 0xaa, 0xaa, 0xa4, 0x56, 0xbf, 0x10, 0x56, 0x6c, 0xea, 0x09,
-	0x2b, 0x68, 0x4c, 0xc7, 0xd8, 0x23, 0x06, 0x9d, 0x0c, 0x53, 0xe6, 0x6c, 0x7c, 0xd3, 0x79, 0xfc,
-	0x0a, 0xdb, 0x84, 0x18, 0xdc, 0x60, 0xce, 0xc6, 0xcb, 0x2e, 0xd5, 0xde, 0xe9, 0x43, 0x1e, 0x74,
-	0x2e, 0xd8, 0xe4, 0xca, 0x25, 0xde, 0xe7, 0x46, 0x7f, 0x60, 0xc8, 0xbb, 0x3c, 0x7b, 0x6d, 0xa3,
-	0xe0, 0xad, 0x8d, 0x82, 0xf7, 0x36, 0x0a, 0x5e, 0x3e, 0xa2, 0x7f, 0xf7, 0x47, 0x7f, 0x78, 0x6a,
-	0xf1, 0x56, 0x07, 0x3c, 0xf9, 0x0a, 0x00, 0x00, 0xff, 0xff, 0x06, 0x34, 0x73, 0x98, 0xa0, 0x02,
-	0x00, 0x00,
+	// 285 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x94, 0x92, 0xcd, 0x4a, 0xf4, 0x30,
+	0x14, 0x86, 0xe9, 0xb7, 0xf8, 0x06, 0x82, 0x3a, 0x50, 0x50, 0xa1, 0x62, 0xc1, 0x9d, 0x20, 0x24,
+	0xa0, 0xab, 0x71, 0x25, 0x63, 0xc5, 0x85, 0x8c, 0x1b, 0xc7, 0x8d, 0xbb, 0x74, 0xe6, 0x98, 0x86,
+	0xfe, 0x9c, 0x92, 0x9e, 0x50, 0xbc, 0x43, 0x97, 0xde, 0x81, 0xd2, 0x2b, 0x11, 0x9b, 0x44, 0xc4,
+	0x85, 0x8e, 0xab, 0x97, 0xf3, 0xd3, 0xa7, 0x4f, 0x42, 0xd8, 0x4c, 0x69, 0x2a, 0x6c, 0xce, 0x57,
+	0x58, 0x8b, 0x65, 0x01, 0xcb, 0x42, 0x37, 0xaa, 0xbb, 0x05, 0xea, 0xd1, 0x94, 0x82, 0xa8, 0x11,
+	0xb2, 0xd5, 0xa2, 0xc6, 0x46, 0x13, 0x9a, 0x90, 0xbc, 0x35, 0x48, 0x18, 0x4f, 0x7c, 0x99, 0x1c,
+	0x86, 0x3d, 0x25, 0x09, 0x7a, 0xf9, 0x14, 0xd2, 0xed, 0x25, 0x07, 0x61, 0x6c, 0xd0, 0x12, 0x18,
+	0x1f, 0xdf, 0x87, 0xb9, 0xc1, 0x12, 0x8c, 0x8f, 0x30, 0x54, 0x88, 0xaa, 0x02, 0x31, 0x56, 0xb9,
+	0x7d, 0x14, 0x50, 0xb7, 0xe4, 0xb1, 0xa7, 0xaf, 0xff, 0xd8, 0x64, 0xe1, 0x0c, 0xe2, 0x73, 0xb6,
+	0x7d, 0xed, 0xfe, 0x79, 0x47, 0x92, 0x6c, 0x17, 0x4f, 0x79, 0x70, 0x70, 0x8d, 0x64, 0x8f, 0x3b,
+	0x16, 0x0f, 0x2c, 0x7e, 0xf5, 0xc1, 0x3a, 0x8e, 0xe2, 0x8b, 0xcf, 0x6f, 0xef, 0xdb, 0x4a, 0x37,
+	0x65, 0xbc, 0xcb, 0xbd, 0xa1, 0xab, 0x17, 0xd0, 0x75, 0x52, 0xc1, 0x0f, 0x84, 0x8c, 0x4d, 0x3d,
+	0x21, 0xc3, 0xbe, 0x19, 0x19, 0xfb, 0x81, 0x11, 0x3a, 0xbf, 0x53, 0x6e, 0xd8, 0xd6, 0x7c, 0x3c,
+	0xbc, 0xd7, 0x38, 0xe2, 0xfe, 0x2e, 0x32, 0x58, 0xdb, 0xb6, 0xd2, 0x2b, 0x49, 0xb0, 0xde, 0x54,
+	0xe9, 0x92, 0xed, 0x38, 0xd8, 0x17, 0xa3, 0x80, 0xdb, 0xd4, 0x68, 0x3e, 0x7b, 0x1e, 0xd2, 0xe8,
+	0x65, 0x48, 0xa3, 0xb7, 0x21, 0x8d, 0x1e, 0x4e, 0xfe, 0xf0, 0x52, 0xf2, 0xff, 0x23, 0xec, 0xec,
+	0x3d, 0x00, 0x00, 0xff, 0xff, 0xf2, 0x07, 0x36, 0xdd, 0x5f, 0x02, 0x00, 0x00,
 }

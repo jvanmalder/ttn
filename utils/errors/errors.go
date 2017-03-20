@@ -1,13 +1,17 @@
+// Copyright © 2017 The Things Network
+// Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+
 package errors
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
+	errs "github.com/pkg/errors"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-
-	errs "github.com/pkg/errors"
 )
 
 type ErrType string
@@ -45,7 +49,10 @@ func BuildGRPCError(err error) error {
 	if err == nil {
 		return nil
 	}
-	code := codes.Unknown
+	code := grpc.Code(err)
+	if code != codes.Unknown {
+		return err // it already is a gRPC error
+	}
 	switch errs.Cause(err).(type) {
 	case *ErrAlreadyExists:
 		code = codes.AlreadyExists
@@ -57,6 +64,12 @@ func BuildGRPCError(err error) error {
 		code = codes.NotFound
 	case *ErrPermissionDenied:
 		code = codes.PermissionDenied
+	}
+	switch err {
+	case context.Canceled:
+		code = codes.Canceled
+	case io.EOF:
+		code = codes.OutOfRange
 	}
 	return grpc.Errorf(code, err.Error())
 }
@@ -83,7 +96,10 @@ func FromGRPCError(err error) error {
 	case codes.PermissionDenied:
 		return NewErrPermissionDenied(strings.TrimPrefix(desc, "permission denied: "))
 	case codes.Unknown: // This also includes all non-gRPC errors
-		return errs.New(err.Error())
+		if desc == "EOF" {
+			return io.EOF
+		}
+		return errs.New(desc)
 	}
 	return NewErrInternal(fmt.Sprintf("[%s] %s", code, desc))
 }

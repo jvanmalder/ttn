@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
@@ -70,6 +70,7 @@ func TestHandleActivation(t *testing.T) {
 		applications: application.NewRedisApplicationStore(GetRedisClient(), "handler-test-activation"),
 		devices:      device.NewRedisDeviceStore(GetRedisClient(), "handler-test-activation"),
 	}
+	h.InitStatus()
 	h.mqttEvent = make(chan *types.DeviceEvent, 10)
 	var wg WaitGroup
 

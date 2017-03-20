@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -18,10 +18,7 @@ var gatewaysRegisterCmd = &cobra.Command{
   INFO Registered gateway                          Gateway ID=test
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) != 2 && len(args) != 3 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
+		assertArgsLength(cmd, args, 2, 3)
 
 		gatewayID := args[0]
 		if !api.ValidID(gatewayID) {
@@ -39,8 +36,12 @@ var gatewaysRegisterCmd = &cobra.Command{
 			}
 		}
 
+		settings := account.GatewaySettings{
+			Location: location,
+		}
+
 		act := util.GetAccount(ctx)
-		gateway, err := act.RegisterGateway(gatewayID, frequencyPlan, location)
+		gateway, err := act.RegisterGateway(gatewayID, frequencyPlan, settings)
 		if err != nil {
 			ctx.WithError(err).Fatal("Could not register gateway")
 		}

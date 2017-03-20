@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package networkserver
@@ -44,6 +44,7 @@ type networkServer struct {
 	devices  device.Store
 	netID    [3]byte
 	prefixes map[types.DevAddrPrefix][]string
+	status   *status
 }
 
 func (n *networkServer) UsePrefix(prefix types.DevAddrPrefix, usage []string) error {
@@ -77,6 +78,7 @@ func (n *networkServer) GetPrefixesFor(requiredUsages ...string) []types.DevAddr
 
 func (n *networkServer) Init(c *component.Component) error {
 	n.Component = c
+	n.InitStatus()
 	err := n.Component.UpdateTokenKey()
 	if err != nil {
 		return err

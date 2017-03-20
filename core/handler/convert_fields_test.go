@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
@@ -36,11 +36,12 @@ func TestConvertFieldsUp(t *testing.T) {
 
 	h := &handler{
 		applications: application.NewRedisApplicationStore(GetRedisClient(), "handler-test-convert-fields-up"),
+		mqttEvent:    make(chan *types.DeviceEvent, 1),
 	}
 
 	// No functions
 	ttnUp, appUp := buildConversionUplink(appID)
-	err := h.ConvertFieldsUp(GetLogger(t, "TestConvertFieldsUp"), ttnUp, appUp)
+	err := h.ConvertFieldsUp(GetLogger(t, "TestConvertFieldsUp"), ttnUp, appUp, nil)
 	a.So(err, ShouldBeNil)
 	a.So(appUp.PayloadFields, ShouldBeEmpty)
 
@@ -54,7 +55,7 @@ func TestConvertFieldsUp(t *testing.T) {
 		h.applications.Delete(appID)
 	}()
 	ttnUp, appUp = buildConversionUplink(appID)
-	err = h.ConvertFieldsUp(GetLogger(t, "TestConvertFieldsUp"), ttnUp, appUp)
+	err = h.ConvertFieldsUp(GetLogger(t, "TestConvertFieldsUp"), ttnUp, appUp, nil)
 	a.So(err, ShouldBeNil)
 
 	a.So(appUp.PayloadFields, ShouldResemble, map[string]interface{}{
@@ -66,18 +67,24 @@ func TestConvertFieldsUp(t *testing.T) {
 	app.Validator = `function Validator (data) { return false; }`
 	h.applications.Set(app)
 	ttnUp, appUp = buildConversionUplink(appID)
-	err = h.ConvertFieldsUp(GetLogger(t, "TestConvertFieldsUp"), ttnUp, appUp)
+	err = h.ConvertFieldsUp(GetLogger(t, "TestConvertFieldsUp"), ttnUp, appUp, nil)
 	a.So(err, ShouldNotBeNil)
 	a.So(appUp.PayloadFields, ShouldBeEmpty)
 
 	// Function error
 	app.StartUpdate()
-	app.Validator = `function Validator (data) { throw "expected"; }`
+	app.Validator = `function Validator (data) { throw new Error("expected"); }`
 	h.applications.Set(app)
 	ttnUp, appUp = buildConversionUplink(appID)
-	err = h.ConvertFieldsUp(GetLogger(t, "TestConvertFieldsUp"), ttnUp, appUp)
+	err = h.ConvertFieldsUp(GetLogger(t, "TestConvertFieldsUp"), ttnUp, appUp, nil)
 	a.So(err, ShouldBeNil)
 	a.So(appUp.PayloadFields, ShouldBeEmpty)
+
+	a.So(len(h.mqttEvent), ShouldEqual, 1)
+	evt := <-h.mqttEvent
+	data, ok := evt.Data.(types.ErrorEventData)
+	a.So(ok, ShouldBeTrue)
+	fmt.Println(data.Error)
 }
 
 func TestDecode(t *testing.T) {
@@ -182,7 +189,7 @@ func TestProcessInvalidUplinkFunction(t *testing.T) {
 		Decoder: ``,
 	}
 	_, _, err := functions.Process([]byte{40, 110}, 1)
-	a.So(err, ShouldNotBeNil)
+	a.So(err, ShouldBeNil)
 
 	// Invalid Function
 	functions = &UplinkFunctions{
@@ -335,7 +342,7 @@ func TestConvertFieldsDown(t *testing.T) {
 
 	// Case1: No Encoder
 	ttnDown, appDown := buildConversionDownlink()
-	err := h.ConvertFieldsDown(GetLogger(t, "TestConvertFieldsDown"), appDown, ttnDown)
+	err := h.ConvertFieldsDown(GetLogger(t, "TestConvertFieldsDown"), appDown, ttnDown, nil)
 	a.So(err, ShouldBeNil)
 	a.So(appDown.PayloadRaw, ShouldBeEmpty)
 
@@ -352,7 +359,7 @@ func TestConvertFieldsDown(t *testing.T) {
 	}()
 
 	ttnDown, appDown = buildConversionDownlink()
-	err = h.ConvertFieldsDown(GetLogger(t, "TestConvertFieldsDown"), appDown, ttnDown)
+	err = h.ConvertFieldsDown(GetLogger(t, "TestConvertFieldsDown"), appDown, ttnDown, nil)
 	a.So(err, ShouldBeNil)
 	a.So(appDown.PayloadRaw, ShouldResemble, []byte{byte(appDown.FPort), 1, 2, 3, 4, 5, 6, 7})
 }
@@ -367,7 +374,7 @@ func TestConvertFieldsDownNoPort(t *testing.T) {
 
 	// Case1: No Encoder
 	ttnDown, appDown := buildConversionDownlink()
-	err := h.ConvertFieldsDown(GetLogger(t, "TestConvertFieldsDown"), appDown, ttnDown)
+	err := h.ConvertFieldsDown(GetLogger(t, "TestConvertFieldsDown"), appDown, ttnDown, nil)
 	a.So(err, ShouldBeNil)
 	a.So(appDown.PayloadRaw, ShouldBeEmpty)
 
@@ -384,7 +391,7 @@ func TestConvertFieldsDownNoPort(t *testing.T) {
 	}()
 
 	ttnDown, appDown = buildConversionDownlink()
-	err = h.ConvertFieldsDown(GetLogger(t, "TestConvertFieldsDown"), appDown, ttnDown)
+	err = h.ConvertFieldsDown(GetLogger(t, "TestConvertFieldsDown"), appDown, ttnDown, nil)
 	a.So(err, ShouldBeNil)
 	a.So(appDown.PayloadRaw, ShouldResemble, []byte{1, 2, 3, 4, 5, 6, 7})
 }

@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 // Package component contains code that is shared by all components (discovery, router, broker, networkserver, handler)
@@ -14,9 +14,10 @@ import (
 
 	"github.com/TheThingsNetwork/go-account-lib/claims"
 	"github.com/TheThingsNetwork/go-account-lib/tokenkey"
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb_discovery "github.com/TheThingsNetwork/ttn/api/discovery"
 	pb_monitor "github.com/TheThingsNetwork/ttn/api/monitor"
-	"github.com/apex/log"
+	"github.com/TheThingsNetwork/ttn/api/trace"
 	"github.com/spf13/viper"
 	"golang.org/x/net/context" // See https://github.com/grpc/grpc-go/issues/711"
 	"google.golang.org/grpc"
@@ -28,8 +29,9 @@ type Component struct {
 	Config           Config
 	Identity         *pb_discovery.Announcement
 	Discovery        pb_discovery.Client
-	Monitors         map[string]*pb_monitor.Client
-	Ctx              log.Interface
+	Monitor          *pb_monitor.Client
+	Ctx              ttnlog.Interface
+	bgCtx            context.Context
 	AccessToken      string
 	privateKey       *ecdsa.PrivateKey
 	tlsConfig        *tls.Config
@@ -51,12 +53,12 @@ type ManagementInterface interface {
 }
 
 // New creates a new Component
-func New(ctx log.Interface, serviceName string, announcedAddress string) (*Component, error) {
+func New(ctx ttnlog.Interface, serviceName string, announcedAddress string) (*Component, error) {
 	go func() {
 		memstats := new(runtime.MemStats)
 		for range time.Tick(time.Minute) {
 			runtime.ReadMemStats(memstats)
-			ctx.WithFields(log.Fields{
+			ctx.WithFields(ttnlog.Fields{
 				"Goroutines": runtime.NumGoroutine(),
 				"Memory":     float64(memstats.Alloc) / 1000000,
 			}).Debugf("Stats")
@@ -81,11 +83,13 @@ func New(ctx log.Interface, serviceName string, announcedAddress string) (*Compo
 		AccessToken: viper.GetString("auth-token"),
 	}
 
+	trace.SetComponent(component.Identity.ServiceName, component.Identity.Id)
+
 	if err := component.InitAuth(); err != nil {
 		return nil, err
 	}
 
-	if serviceName != "discovery" {
+	if serviceName != "discovery" && serviceName != "networkserver" {
 		var err error
 		component.Discovery, err = pb_discovery.NewClient(
 			viper.GetString("discovery-address"),
@@ -116,16 +120,9 @@ func New(ctx log.Interface, serviceName string, announcedAddress string) (*Compo
 		go http.ListenAndServe(fmt.Sprintf(":%d", healthPort), nil)
 	}
 
-	if monitors := viper.GetStringMapString("monitor-servers"); len(monitors) != 0 {
-		component.Monitors = make(map[string]*pb_monitor.Client)
-		for name, addr := range monitors {
-			var err error
-			component.Monitors[name], err = pb_monitor.NewClient(ctx.WithField("Monitor", name), addr)
-			if err != nil {
-				// Assuming grpc.WithBlock() is not set
-				return nil, err
-			}
-		}
+	component.Monitor = pb_monitor.NewClient(pb_monitor.DefaultClientConfig)
+	for name, addr := range viper.GetStringMapString("monitor-servers") {
+		component.Monitor.AddServer(name, addr)
 	}
 
 	return component, nil

@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -12,12 +12,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb "github.com/TheThingsNetwork/ttn/api/discovery"
 	"github.com/TheThingsNetwork/ttn/core/component"
 	"github.com/TheThingsNetwork/ttn/core/discovery"
 	"github.com/TheThingsNetwork/ttn/core/discovery/announcement"
 	"github.com/TheThingsNetwork/ttn/core/proxy"
-	"github.com/apex/log"
+	"github.com/TheThingsNetwork/ttn/core/proxy/jsonpb"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -31,7 +32,7 @@ var discoveryCmd = &cobra.Command{
 	Short: "The Things Network discovery",
 	Long:  ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		ctx.WithFields(log.Fields{
+		ctx.WithFields(ttnlog.Fields{
 			"Server":     fmt.Sprintf("%s:%d", viper.GetString("discovery.server-address"), viper.GetInt("discovery.server-port")),
 			"HTTP Proxy": fmt.Sprintf("%s:%d", viper.GetString("discovery.http-address"), viper.GetInt("discovery.http-port")),
 			"Database":   fmt.Sprintf("%s/%d", viper.GetString("discovery.redis-address"), viper.GetInt("discovery.redis-db")),
@@ -47,10 +48,12 @@ var discoveryCmd = &cobra.Command{
 			DB:       viper.GetInt("discovery.redis-db"),
 		})
 
-		connectRedis(client)
+		if err := connectRedis(client); err != nil {
+			ctx.WithError(err).Fatal("Could not initialize database connection")
+		}
 
 		// Component
-		component, err := component.New(ctx, "discovery", fmt.Sprintf("%s:%d", viper.GetString("discovery.server-address-announce"), viper.GetInt("discovery.server-port")))
+		component, err := component.New(ttnlog.Get(), "discovery", fmt.Sprintf("%s:%d", "localhost", viper.GetInt("discovery.server-port")))
 		if err != nil {
 			ctx.WithError(err).Fatal("Could not initialize component")
 		}
@@ -83,12 +86,15 @@ var discoveryCmd = &cobra.Command{
 			if err != nil {
 				ctx.WithError(err).Fatal("Could not start client for gRPC proxy")
 			}
-			mux := runtime.NewServeMux()
+			mux := runtime.NewServeMux(runtime.WithMarshalerOption("*", &jsonpb.GoGoJSONPb{
+				OrigName: true,
+			}))
 			netCtx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			pb.RegisterDiscoveryHandler(netCtx, mux, proxyConn)
 
 			prxy := proxy.WithLogger(mux, ctx)
+			prxy = proxy.WithPagination(prxy)
 
 			go func() {
 				err := http.ListenAndServe(
@@ -125,7 +131,7 @@ func init() {
 	discoveryCmd.Flags().Bool("cache", false, "Add a cache in front of the database")
 	viper.BindPFlag("discovery.cache", discoveryCmd.Flags().Lookup("cache"))
 
-	discoveryCmd.Flags().StringSlice("master-auth-servers", []string{"ttn-account"}, "Auth servers that are allowed to manage this network")
+	discoveryCmd.Flags().StringSlice("master-auth-servers", []string{"ttn-account-v2"}, "Auth servers that are allowed to manage this network")
 	viper.BindPFlag("discovery.master-auth-servers", discoveryCmd.Flags().Lookup("master-auth-servers"))
 
 	discoveryCmd.Flags().String("http-address", "0.0.0.0", "The IP address where the gRPC proxy should listen")

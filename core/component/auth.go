@@ -1,15 +1,23 @@
+// Copyright © 2017 The Things Network
+// Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+
 package component
 
 import (
 	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"net/url"
+	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/TheThingsNetwork/go-account-lib/account"
+	"github.com/TheThingsNetwork/go-account-lib/auth"
 	"github.com/TheThingsNetwork/go-account-lib/cache"
 	"github.com/TheThingsNetwork/go-account-lib/claims"
 	"github.com/TheThingsNetwork/go-account-lib/keys"
-	"github.com/TheThingsNetwork/go-account-lib/oauth"
 	"github.com/TheThingsNetwork/go-account-lib/tokenkey"
 	"github.com/TheThingsNetwork/ttn/api"
 	pb_discovery "github.com/TheThingsNetwork/ttn/api/discovery"
@@ -17,7 +25,6 @@ import (
 	"github.com/TheThingsNetwork/ttn/utils/security"
 	jwt "github.com/dgrijalva/jwt-go"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc/metadata"
 )
 
 // InitAuth initializes Auth functionality
@@ -25,6 +32,7 @@ func (c *Component) InitAuth() error {
 	inits := []func() error{
 		c.initAuthServers,
 		c.initKeyPair,
+		c.initRoots,
 	}
 	if c.Config.UseTLS {
 		inits = append(inits, c.initTLS)
@@ -60,17 +68,35 @@ func parseAuthServer(str string) (srv authServer, err error) {
 
 func (c *Component) initAuthServers() error {
 	urlMap := make(map[string]string)
+	funcMap := make(map[string]tokenkey.TokenFunc)
+	var httpProvider tokenkey.Provider
 	for id, url := range c.Config.AuthServers {
+		id, url := id, url // deliberately shadow these
+		if strings.HasPrefix(url, "file://") {
+			file := strings.TrimPrefix(url, "file://")
+			contents, err := ioutil.ReadFile(path.Clean(file))
+			if err != nil {
+				return err
+			}
+			funcMap[id] = func(renew bool) (*tokenkey.TokenKey, error) {
+				return &tokenkey.TokenKey{Algorithm: "ES256", Key: string(contents)}, nil
+			}
+			continue
+		}
 		srv, err := parseAuthServer(url)
 		if err != nil {
 			return err
 		}
 		urlMap[id] = srv.url
+		funcMap[id] = func(renew bool) (*tokenkey.TokenKey, error) {
+			return httpProvider.Get(id, renew)
+		}
 	}
-	c.TokenKeyProvider = tokenkey.HTTPProvider(
+	httpProvider = tokenkey.HTTPProvider(
 		urlMap,
 		cache.WriteTroughCacheWithFormat(c.Config.KeyDir, "auth-%s.pub"),
 	)
+	c.TokenKeyProvider = tokenkey.FuncProvider(funcMap)
 	return nil
 }
 
@@ -121,40 +147,57 @@ func (c *Component) initTLS() error {
 	return nil
 }
 
+func (c *Component) initRoots() error {
+	path := filepath.Clean(c.Config.KeyDir + "/ca.cert")
+	cert, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	if !api.RootCAs.AppendCertsFromPEM(cert) {
+		return fmt.Errorf("Could not add root certificates from %s", path)
+	}
+	return nil
+}
+
+func (c *Component) initBgCtx() error {
+	ctx := context.Background()
+	if c.Identity != nil {
+		ctx = api.ContextWithID(ctx, c.Identity.Id)
+		ctx = api.ContextWithServiceInfo(ctx, c.Identity.ServiceName, c.Identity.ServiceVersion, c.Identity.NetAddress)
+	}
+	c.bgCtx = ctx
+	return nil
+}
+
 // BuildJWT builds a short-lived JSON Web Token for this component
 func (c *Component) BuildJWT() (string, error) {
-	if c.privateKey != nil {
-		privPEM, err := security.PrivatePEM(c.privateKey)
-		if err != nil {
-			return "", err
-		}
-		return security.BuildJWT(c.Identity.Id, 20*time.Second, privPEM)
+	if c.privateKey == nil {
+		return "", nil
 	}
-	return "", nil
+	if c.Identity == nil {
+		return "", nil
+	}
+	privPEM, err := security.PrivatePEM(c.privateKey)
+	if err != nil {
+		return "", err
+	}
+	return security.BuildJWT(c.Identity.Id, 20*time.Second, privPEM)
 }
 
 // GetContext returns a context for outgoing RPC request. If token is "", this function will generate a short lived token from the component
 func (c *Component) GetContext(token string) context.Context {
-	var serviceName, serviceVersion, id, netAddress string
-	if c.Identity != nil {
-		serviceName = c.Identity.ServiceName
-		id = c.Identity.Id
-		if token == "" {
-			token, _ = c.BuildJWT()
-		}
-		serviceVersion = c.Identity.ServiceVersion
-		netAddress = c.Identity.NetAddress
+	if c.bgCtx == nil {
+		c.initBgCtx()
 	}
-	md := metadata.Pairs(
-		"service-name", serviceName,
-		"service-version", serviceVersion,
-		"id", id,
-		"token", token,
-		"net-address", netAddress,
-	)
-	ctx := metadata.NewContext(context.Background(), md)
+	ctx := c.bgCtx
+	if token == "" && c.Identity != nil {
+		token, _ = c.BuildJWT()
+	}
+	ctx = api.ContextWithToken(ctx, token)
 	return ctx
 }
+
+var oauthCache = cache.MemoryCache()
 
 // ExchangeAppKeyForToken enables authentication with the App Access Key
 func (c *Component) ExchangeAppKeyForToken(appID, key string) (string, error) {
@@ -172,17 +215,30 @@ func (c *Component) ExchangeAppKeyForToken(appID, key string) (string, error) {
 		return "", fmt.Errorf("Auth server %s not registered", issuer)
 	}
 
-	srv, _ := parseAuthServer(issuer)
-
-	oauth := oauth.OAuth(srv.url, &oauth.Client{
-		ID:     srv.username,
-		Secret: srv.password,
-	})
-
-	token, err := oauth.ExchangeAppKeyForToken(appID, key)
+	token, err := getTokenFromCache(oauthCache, appID, key)
 	if err != nil {
 		return "", err
 	}
+
+	if token != nil {
+		return token.AccessToken, nil
+	}
+
+	srv, _ := parseAuthServer(issuer)
+	acc := account.New(srv.url)
+
+	if srv.username != "" {
+		acc = acc.WithAuth(auth.BasicAuth(srv.username, srv.password))
+	} else {
+		acc = acc.WithAuth(auth.AccessToken(c.AccessToken))
+	}
+
+	token, err = acc.ExchangeAppKeyForToken(appID, key)
+	if err != nil {
+		return "", err
+	}
+
+	saveTokenToCache(oauthCache, appID, key, token)
 
 	return token.AccessToken, nil
 }
@@ -195,43 +251,28 @@ func (c *Component) ValidateNetworkContext(ctx context.Context) (component *pb_d
 		}
 	}()
 
-	md, ok := metadata.FromContext(ctx)
-	if !ok {
-		err = errors.NewErrInternal("Could not get metadata from context")
-		return
-	}
-	var id, serviceName, token string
-	if ids, ok := md["id"]; ok && len(ids) == 1 {
-		id = ids[0]
-	}
-	if id == "" {
-		err = errors.NewErrInvalidArgument("Metadata", "id missing")
-		return
-	}
-	if serviceNames, ok := md["service-name"]; ok && len(serviceNames) == 1 {
-		serviceName = serviceNames[0]
-	}
-	if serviceName == "" {
-		err = errors.NewErrInvalidArgument("Metadata", "service-name missing")
-		return
-	}
-	if tokens, ok := md["token"]; ok && len(tokens) == 1 {
-		token = tokens[0]
+	id, err := api.IDFromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	var announcement *pb_discovery.Announcement
-	announcement, err = c.Discover(serviceName, id)
+	serviceName, _, _, _ := api.ServiceInfoFromContext(ctx)
+	if serviceName == "" {
+		return nil, errors.NewErrInvalidArgument("Metadata", "service-name missing")
+	}
+
+	announcement, err := c.Discover(serviceName, id)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if announcement.PublicKey == "" {
 		return announcement, nil
 	}
 
-	if token == "" {
-		err = errors.NewErrInvalidArgument("Metadata", "token missing")
-		return
+	token, err := api.TokenFromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	var claims *jwt.StandardClaims
@@ -240,7 +281,11 @@ func (c *Component) ValidateNetworkContext(ctx context.Context) (component *pb_d
 		return
 	}
 	if claims.Issuer != id {
-		err = errors.NewErrInvalidArgument("Metadata", "token was issued by different component id")
+		err = errors.NewErrPermissionDenied(fmt.Sprintf("Token was issued by %s, not by %s", claims.Issuer, id))
+		return
+	}
+	if claims.Subject != "" && claims.Subject != claims.Issuer && claims.Subject != c.Identity.Id {
+		err = errors.NewErrPermissionDenied(fmt.Sprintf("Token was issued to connect with %s, not with %s", claims.Subject, c.Identity.Id))
 		return
 	}
 

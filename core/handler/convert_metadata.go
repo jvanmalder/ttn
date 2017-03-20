@@ -1,16 +1,17 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
 
 import (
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
+	"github.com/TheThingsNetwork/ttn/core/handler/device"
 	"github.com/TheThingsNetwork/ttn/core/types"
-	"github.com/apex/log"
 )
 
 // ConvertMetadata converts the protobuf matadata to application metadata
-func (h *handler) ConvertMetadata(ctx log.Interface, ttnUp *pb_broker.DeduplicatedUplinkMessage, appUp *types.UplinkMessage) error {
+func (h *handler) ConvertMetadata(ctx ttnlog.Interface, ttnUp *pb_broker.DeduplicatedUplinkMessage, appUp *types.UplinkMessage, dev *device.Device) error {
 	ctx = ctx.WithField("NumGateways", len(ttnUp.GatewayMetadata))
 
 	// Transform Metadata
@@ -32,13 +33,14 @@ func (h *handler) ConvertMetadata(ctx log.Interface, ttnUp *pb_broker.Deduplicat
 		}
 
 		gatewayMetadata := types.GatewayMetadata{
-			GtwID:     in.GatewayId,
-			Timestamp: in.Timestamp,
-			Time:      types.BuildTime(in.Time),
-			Channel:   in.Channel,
-			RFChain:   in.RfChain,
-			RSSI:      in.Rssi,
-			SNR:       in.Snr,
+			GtwID:      in.GatewayId,
+			GtwTrusted: in.GatewayTrusted,
+			Timestamp:  in.Timestamp,
+			Time:       types.BuildTime(in.Time),
+			Channel:    in.Channel,
+			RFChain:    in.RfChain,
+			RSSI:       in.Rssi,
+			SNR:        in.Snr,
 		}
 
 		if gps := in.GetGps(); gps != nil {
@@ -49,6 +51,11 @@ func (h *handler) ConvertMetadata(ctx log.Interface, ttnUp *pb_broker.Deduplicat
 
 		appUp.Metadata.Gateways = append(appUp.Metadata.Gateways, gatewayMetadata)
 	}
+
+	// Inject Device Metadata
+	appUp.Metadata.LocationMetadata.Latitude = dev.Latitude
+	appUp.Metadata.LocationMetadata.Longitude = dev.Longitude
+	appUp.Metadata.LocationMetadata.Altitude = dev.Altitude
 
 	return nil
 }

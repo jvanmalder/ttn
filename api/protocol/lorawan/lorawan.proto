@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 syntax = "proto3";
@@ -16,20 +16,30 @@ enum Modulation {
 
 message Metadata {
   Modulation  modulation   = 11;
-  string      data_rate    = 12; // LoRa data rate - SF{spreadingfactor}BW{bandwidth}
-  uint32      bit_rate     = 13; // FSK bit rate in bit/s
-  string      coding_rate  = 14; // LoRa coding rate
+  // LoRa data rate - SF{spreadingfactor}BW{bandwidth}
+  string      data_rate    = 12;
+  // FSK bit rate in bit/s
+  uint32      bit_rate     = 13;
+  // LoRa coding rate
+  string      coding_rate  = 14;
 
-  uint32      f_cnt = 15; // Store the full 32 bit FCnt
+  // Store the full 32 bit FCnt (deprecated; do not use)
+  uint32      f_cnt = 15;
+
+  Region region     = 16;
 }
 
 message TxConfiguration {
   Modulation  modulation   = 11;
-  string      data_rate    = 12; // LoRa data rate - SF{spreadingfactor}BW{bandwidth}
-  uint32      bit_rate     = 13; // FSK bit rate in bit/s
-  string      coding_rate  = 14; // LoRa coding rate
+  // LoRa data rate - SF{spreadingfactor}BW{bandwidth}
+  string      data_rate    = 12;
+  // FSK bit rate in bit/s
+  uint32      bit_rate     = 13;
+  // LoRa coding rate
+  string      coding_rate  = 14;
 
-  uint32      f_cnt = 15; // Store the full 32 bit FCnt
+  // Store the full 32 bit FCnt (deprecated; do not use)
+  uint32      f_cnt = 15;
 }
 
 message ActivationMetadata {
@@ -42,17 +52,27 @@ message ActivationMetadata {
   uint32 rx2_dr           = 12;
   uint32 rx_delay         = 13;
   CFList cf_list          = 14;
+  Region region           = 15;
 }
 
 enum Region {
   EU_863_870 = 0;
+
   US_902_928 = 1;
+
   CN_779_787 = 2;
+
   EU_433     = 3;
+
   AU_915_928 = 4;
+
   CN_470_510 = 5;
+
   AS_923     = 6;
-  SK_920_923 = 7;
+  AS_920_923 = 61;
+  AS_923_925 = 62;
+
+  KR_920_923 = 7;
 }
 
 message Message {

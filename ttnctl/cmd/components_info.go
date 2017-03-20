@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -22,10 +22,7 @@ Type:           handler
 Created:        2016-10-06 09:52:28.766 +0000 UTC
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) != 2 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
+		assertArgsLength(cmd, args, 2, 2)
 
 		account := util.GetAccount(ctx)
 

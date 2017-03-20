@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -9,9 +9,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/api/handler"
 	"github.com/TheThingsNetwork/ttn/ttnctl/util"
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 )
 
@@ -44,9 +44,19 @@ function Decoder(bytes, port) {
 
   return decoded;
 }
+
+Do you want to test the payload functions? (Y/n)
+Y
+
+Payload: 12 34
+Port: 1
+
+  INFO Function tested successfully
+
   INFO Updated application                      AppID=test
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 1, 2)
 
 		appID := util.GetAppID(ctx)
 
@@ -60,11 +70,6 @@ function Decoder(bytes, port) {
 			ctx.WithError(err).Fatal("Could not get existing application.")
 		}
 
-		if len(args) == 0 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
-
 		function := args[0]
 
 		if len(args) == 2 {
@@ -72,6 +77,12 @@ function Decoder(bytes, port) {
 			if err != nil {
 				ctx.WithError(err).Fatal("Could not read function file")
 			}
+			fmt.Println(fmt.Sprintf(`
+Function read from %s:
+
+%s
+`, args[1], string(content)))
+
 			switch function {
 			case "decoder":
 				app.Decoder = string(content)
@@ -99,7 +110,7 @@ function Decoder(bytes, port) {
   return decoded;
 }
 ########## Write your Decoder here and end with Ctrl+D (EOF):`)
-				app.Decoder = readFunction()
+				app.Decoder = readFunction(ctx)
 			case "converter":
 				fmt.Println(`function Converter(decoded, port) {
   // Merge, split or otherwise
@@ -113,7 +124,7 @@ function Decoder(bytes, port) {
   return converted;
 }
 ########## Write your Converter here and end with Ctrl+D (EOF):`)
-				app.Converter = readFunction()
+				app.Converter = readFunction(ctx)
 			case "validator":
 				fmt.Println(`function Validator(converted, port) {
   // Return false if the decoded, converted
@@ -126,7 +137,7 @@ function Decoder(bytes, port) {
   return true;
 }
 ########## Write your Validator here and end with Ctrl+D (EOF):`)
-				app.Validator = readFunction()
+				app.Validator = readFunction(ctx)
 			case "encoder":
 				fmt.Println(`function Encoder(object, port) {
   // Encode downlink messages sent as
@@ -140,7 +151,54 @@ function Decoder(bytes, port) {
   return bytes;
 }
 ########## Write your Encoder here and end with Ctrl+D (EOF):`)
-				app.Encoder = readFunction()
+				app.Encoder = readFunction(ctx)
+			default:
+				ctx.Fatalf("Function %s does not exist", function)
+			}
+		}
+
+		fmt.Printf("\nDo you want to test the payload functions? (Y/n)\n")
+		var response string
+		fmt.Scanln(&response)
+
+		if strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" || response == "" {
+			switch function {
+			case "decoder", "converter", "validator":
+				payload, err := util.ReadPayload()
+				if err != nil {
+					ctx.WithError(err).Fatal("Could not parse the payload")
+				}
+
+				port, err := util.ReadPort()
+				if err != nil {
+					ctx.WithError(err).Fatal("Could not parse the port")
+				}
+
+				result, err := manager.DryUplink(payload, app, uint32(port))
+				if err != nil {
+					ctx.WithError(err).Fatal("Could not set the payload function")
+				}
+
+				if !result.Valid {
+					ctx.Fatal("Could not set the payload function: Invalid result")
+				}
+				ctx.Infof("Function tested successfully. Object returned by the converter: %s", result.Fields)
+			case "encoder":
+				fields, err := util.ReadFields()
+				if err != nil {
+					ctx.WithError(err).Fatal("Could not parse the fields")
+				}
+
+				port, err := util.ReadPort()
+				if err != nil {
+					ctx.WithError(err).Fatal("Could not parse the port")
+				}
+
+				result, err := manager.DryDownlinkWithFields(fields, app, uint32(port))
+				if err != nil {
+					ctx.WithError(err).Fatal("Could not set the payload function")
+				}
+				ctx.Infof("Function tested successfully. Encoded message: %v", result.Payload)
 			default:
 				ctx.Fatalf("Function %s does not exist", function)
 			}
@@ -157,14 +215,14 @@ function Decoder(bytes, port) {
 	},
 }
 
-func readFunction() string {
+func init() {
+	applicationsPayloadFunctionsCmd.AddCommand(applicationsPayloadFunctionsSetCmd)
+}
+
+func readFunction(ctx log.Interface) string {
 	content, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		ctx.WithError(err).Fatal("Could not read function from STDIN.")
 	}
 	return strings.TrimSpace(string(content))
-}
-
-func init() {
-	applicationsPayloadFunctionsCmd.AddCommand(applicationsPayloadFunctionsSetCmd)
 }

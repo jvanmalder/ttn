@@ -1,3 +1,6 @@
+// Copyright © 2017 The Things Network
+// Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+
 package announcement
 
 import (
@@ -11,6 +14,8 @@ import (
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/fatih/structs"
 )
+
+const currentDBVersion = "2.4.1"
 
 // Metadata represents metadata that is stored with an Announcement
 type Metadata interface {
@@ -26,8 +31,9 @@ type AppEUIMetadata struct {
 // ToProto implements the Metadata interface
 func (m AppEUIMetadata) ToProto() *pb.Metadata {
 	return &pb.Metadata{
-		Key:   pb.Metadata_APP_EUI,
-		Value: m.AppEUI.Bytes(),
+		Metadata: &pb.Metadata_AppEui{
+			AppEui: m.AppEUI.Bytes(),
+		},
 	}
 }
 
@@ -44,8 +50,9 @@ type AppIDMetadata struct {
 // ToProto implements the Metadata interface
 func (m AppIDMetadata) ToProto() *pb.Metadata {
 	return &pb.Metadata{
-		Key:   pb.Metadata_APP_ID,
-		Value: []byte(m.AppID),
+		Metadata: &pb.Metadata_AppId{
+			AppId: m.AppID,
+		},
 	}
 }
 
@@ -62,8 +69,9 @@ type PrefixMetadata struct {
 // ToProto implements the Metadata interface
 func (m PrefixMetadata) ToProto() *pb.Metadata {
 	return &pb.Metadata{
-		Key:   pb.Metadata_PREFIX,
-		Value: []byte{byte(m.Prefix.Length), m.Prefix.DevAddr[0], m.Prefix.DevAddr[1], m.Prefix.DevAddr[2], m.Prefix.DevAddr[3]},
+		Metadata: &pb.Metadata_DevAddrPrefix{
+			DevAddrPrefix: m.Prefix.Bytes(),
+		},
 	}
 }
 
@@ -72,47 +80,24 @@ func (m PrefixMetadata) MarshalText() ([]byte, error) {
 	return []byte(fmt.Sprintf("Prefix %s", m.Prefix)), nil
 }
 
-// OtherMetadata is used to store arbitrary information
-type OtherMetadata struct {
-	Data string
-}
-
-// ToProto implements the Metadata interface
-func (m OtherMetadata) ToProto() *pb.Metadata {
-	return &pb.Metadata{
-		Key:   pb.Metadata_OTHER,
-		Value: []byte(m.Data),
-	}
-}
-
-// MarshalText implements the encoding.TextMarshaler interface
-func (m OtherMetadata) MarshalText() ([]byte, error) {
-	return []byte(fmt.Sprintf("Other %s", m.Data)), nil
-}
-
 // MetadataFromProto converts a protocol buffer metadata to a Metadata
 func MetadataFromProto(proto *pb.Metadata) Metadata {
-	switch proto.Key {
-	case pb.Metadata_APP_EUI:
-		appEUI := new(types.AppEUI)
-		appEUI.UnmarshalBinary(proto.Value)
-		return AppEUIMetadata{*appEUI}
-	case pb.Metadata_APP_ID:
-		return AppIDMetadata{string(proto.Value)}
-	case pb.Metadata_PREFIX:
-		prefix := types.DevAddrPrefix{
-			Length: 32,
+	if euiBytes := proto.GetAppEui(); euiBytes != nil {
+		eui := new(types.AppEUI)
+		if err := eui.Unmarshal(euiBytes); err != nil {
+			return nil
 		}
-		if len(proto.Value) == 5 {
-			prefix.Length = int(proto.Value[0])
-			prefix.DevAddr[0] = proto.Value[1]
-			prefix.DevAddr[1] = proto.Value[2]
-			prefix.DevAddr[2] = proto.Value[3]
-			prefix.DevAddr[3] = proto.Value[4]
+		return AppEUIMetadata{*eui}
+	}
+	if id := proto.GetAppId(); id != "" {
+		return AppIDMetadata{id}
+	}
+	if prefixBytes := proto.GetDevAddrPrefix(); prefixBytes != nil {
+		prefix := new(types.DevAddrPrefix)
+		if err := prefix.Unmarshal(prefixBytes); err != nil {
+			return nil
 		}
-		return PrefixMetadata{prefix}
-	case pb.Metadata_OTHER:
-		return OtherMetadata{string(proto.Value)}
+		return PrefixMetadata{*prefix}
 	}
 	return nil
 }
@@ -135,15 +120,14 @@ func MetadataFromString(str string) Metadata {
 		}
 		prefix.UnmarshalText([]byte(value))
 		return PrefixMetadata{*prefix}
-	case "Other":
-		return OtherMetadata{value}
 	}
 	return nil
 }
 
 // Announcement of a network component
 type Announcement struct {
-	old            *Announcement
+	old *Announcement
+
 	ID             string `redis:"id"`
 	ServiceName    string `redis:"service_name"`
 	ServiceVersion string `redis:"service_version"`
@@ -154,6 +138,8 @@ type Announcement struct {
 	PublicKey      string `redis:"public_key"`
 	Certificate    string `redis:"certificate"`
 	APIAddress     string `redis:"api_address"`
+	MQTTAddress    string `redis:"mqtt_address"`
+	AMQPAddress    string `redis:"amqp_address"`
 	Metadata       []Metadata
 
 	CreatedAt time.Time `redis:"created_at"`
@@ -164,6 +150,11 @@ type Announcement struct {
 func (a *Announcement) StartUpdate() {
 	old := *a
 	a.old = &old
+}
+
+// DBVersion of the model
+func (a *Announcement) DBVersion() string {
+	return currentDBVersion
 }
 
 // ChangedFields returns the names of the changed fields since the last call to StartUpdate
@@ -183,6 +174,11 @@ func (a Announcement) ChangedFields() (changed []string) {
 			changed = append(changed, field.Name())
 		}
 	}
+
+	if len(changed) == 1 && changed[0] == "UpdatedAt" {
+		return []string{}
+	}
+
 	return
 }
 
@@ -203,6 +199,8 @@ func (a Announcement) ToProto() *pb.Announcement {
 		PublicKey:      a.PublicKey,
 		Certificate:    a.Certificate,
 		ApiAddress:     a.APIAddress,
+		MqttAddress:    a.MQTTAddress,
+		AmqpAddress:    a.AMQPAddress,
 		Metadata:       metadata,
 	}
 }
@@ -224,6 +222,8 @@ func FromProto(a *pb.Announcement) Announcement {
 		PublicKey:      a.PublicKey,
 		Certificate:    a.Certificate,
 		APIAddress:     a.ApiAddress,
+		MQTTAddress:    a.MqttAddress,
+		AMQPAddress:    a.AmqpAddress,
 		Metadata:       metadata,
 	}
 }

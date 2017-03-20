@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package functions
@@ -40,6 +40,23 @@ func TestRunCode(t *testing.T) {
 			Fields:   []string{`"hello"`, "10", `"baz"`},
 		},
 	})
+}
+
+func TestRunCodeThrow(t *testing.T) {
+	a := New(t)
+
+	logger := NewEntryLogger()
+	env := map[string]interface{}{}
+
+	code := `
+		(function () {
+			throw new Error("This is an error")
+			return 10
+		})()
+	`
+
+	_, err := RunCode("test", code, env, time.Second, logger)
+	a.So(err, ShouldNotBeNil)
 }
 
 var result string

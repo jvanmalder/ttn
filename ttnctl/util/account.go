@@ -1,12 +1,14 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package util
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 	"time"
 
@@ -14,7 +16,7 @@ import (
 	"github.com/TheThingsNetwork/go-account-lib/cache"
 	"github.com/TheThingsNetwork/go-account-lib/oauth"
 	"github.com/TheThingsNetwork/go-account-lib/tokens"
-	"github.com/apex/log"
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
@@ -46,10 +48,25 @@ func GetTokenCache() cache.Cache {
 	return cache.FileCacheWithNameFn(GetDataDir(), tokenFilename)
 }
 
+func GetUserAgent() string {
+	return fmt.Sprintf(
+		"ttnctl/%s-%s (%s-%s) (%s)",
+		viper.GetString("version"),
+		viper.GetString("gitCommit"),
+		runtime.GOOS,
+		runtime.GOARCH,
+		GetID(),
+	)
+}
+
 // getOAuth gets the OAuth client
 func getOAuth() *oauth.Config {
 	return oauth.OAuth(viper.GetString("auth-server"), &oauth.Client{
-		ID: "ttnctl",
+		ID:     "ttnctl",
+		Secret: "ttnctl",
+		ExtraHeaders: map[string]string{
+			"User-Agent": GetUserAgent(),
+		},
 	})
 }
 
@@ -57,7 +74,7 @@ func getAccountServerTokenSource(token *oauth2.Token) oauth2.TokenSource {
 	return getOAuth().TokenSource(token)
 }
 
-func getStoredToken(ctx log.Interface) *oauth2.Token {
+func getStoredToken(ctx ttnlog.Interface) *oauth2.Token {
 	tokenCache := GetTokenCache()
 	data, err := tokenCache.Get(tokenName())
 	if err != nil {
@@ -75,7 +92,7 @@ func getStoredToken(ctx log.Interface) *oauth2.Token {
 	return token
 }
 
-func saveToken(ctx log.Interface, token *oauth2.Token) {
+func saveToken(ctx ttnlog.Interface, token *oauth2.Token) {
 	data, err := json.Marshal(token)
 	if err != nil {
 		ctx.WithError(err).Fatal("Could not save access token")
@@ -87,7 +104,7 @@ func saveToken(ctx log.Interface, token *oauth2.Token) {
 }
 
 type ttnctlTokenSource struct {
-	ctx    log.Interface
+	ctx    ttnlog.Interface
 	source oauth2.TokenSource
 }
 
@@ -101,7 +118,7 @@ func (s *ttnctlTokenSource) Token() (*oauth2.Token, error) {
 }
 
 // ForceRefreshToken forces a refresh of the access token
-func ForceRefreshToken(ctx log.Interface) {
+func ForceRefreshToken(ctx ttnlog.Interface) {
 	tokenSource := GetTokenSource(ctx).(*ttnctlTokenSource)
 	token, err := tokenSource.Token()
 	if err != nil {
@@ -113,7 +130,7 @@ func ForceRefreshToken(ctx log.Interface) {
 }
 
 // GetTokenSource builds a new oauth2.TokenSource that uses the ttnctl config to store the token
-func GetTokenSource(ctx log.Interface) oauth2.TokenSource {
+func GetTokenSource(ctx ttnlog.Interface) oauth2.TokenSource {
 	if tokenSource != nil {
 		return tokenSource
 	}
@@ -129,7 +146,7 @@ func GetTokenManager(accessToken string) tokens.Manager {
 }
 
 // GetAccount gets a new Account server client for ttnctl
-func GetAccount(ctx log.Interface) *account.Account {
+func GetAccount(ctx ttnlog.Interface) *account.Account {
 	token, err := GetTokenSource(ctx).Token()
 	if err != nil {
 		ctx.WithError(err).Fatal("Could not get access token")
@@ -138,11 +155,11 @@ func GetAccount(ctx log.Interface) *account.Account {
 	server := viper.GetString("auth-server")
 	manager := GetTokenManager(token.AccessToken)
 
-	return account.NewWithManager(server, token.AccessToken, manager)
+	return account.NewWithManager(server, token.AccessToken, manager).WithHeader("User-Agent", GetUserAgent())
 }
 
 // Login does a login to the Account server with the given username and password
-func Login(ctx log.Interface, code string) (*oauth2.Token, error) {
+func Login(ctx ttnlog.Interface, code string) (*oauth2.Token, error) {
 	config := getOAuth()
 	token, err := config.Exchange(code)
 	if err != nil {
@@ -152,7 +169,7 @@ func Login(ctx log.Interface, code string) (*oauth2.Token, error) {
 	return token, nil
 }
 
-func TokenForScope(ctx log.Interface, scope string) string {
+func TokenForScope(ctx ttnlog.Interface, scope string) string {
 	token, err := GetTokenSource(ctx).Token()
 	if err != nil {
 		ctx.WithError(err).Fatal("Could not get token")

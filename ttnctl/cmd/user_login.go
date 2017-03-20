@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -24,10 +24,7 @@ $ ttnctl user login [paste the access code you requested above]
   INFO Successfully logged in as yourname (your@email.org)
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) < 1 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
+		assertArgsLength(cmd, args, 1, 1)
 
 		code := args[0]
 		token, err := util.Login(ctx, code)
@@ -35,7 +32,7 @@ $ ttnctl user login [paste the access code you requested above]
 			ctx.WithError(err).Fatal("Login failed")
 		}
 
-		acc := account.New(viper.GetString("auth-server"))
+		acc := account.New(viper.GetString("auth-server")).WithHeader("User-Agent", util.GetUserAgent())
 		acc.WithAuth(auth.AccessToken(token.AccessToken))
 		profile, err := acc.Profile()
 		if err != nil {

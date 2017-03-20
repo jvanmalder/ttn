@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package types
@@ -8,13 +8,19 @@ type EventType string
 
 // Event types
 const (
-	UplinkErrorEvent       EventType = "up/errors"
+	UplinkErrorEvent EventType = "up/errors"
+
 	DownlinkScheduledEvent EventType = "down/scheduled"
 	DownlinkSentEvent      EventType = "down/sent"
 	DownlinkErrorEvent     EventType = "down/errors"
 	DownlinkAckEvent       EventType = "down/acks"
-	ActivationEvent        EventType = "activations"
-	ActivationErrorEvent   EventType = "activations/errors"
+
+	ActivationEvent      EventType = "activations"
+	ActivationErrorEvent EventType = "activations/errors"
+
+	CreateEvent EventType = "create"
+	UpdateEvent EventType = "update"
+	DeleteEvent EventType = "delete"
 )
 
 // DeviceEvent represents an application-layer event message for a device event
@@ -28,11 +34,12 @@ type DeviceEvent struct {
 
 // ErrorEventData is added to error events
 type ErrorEventData struct {
-	Error string `json:"error"`
+	Error string `json:"error,omitempty"`
 }
 
 // ActivationEventData is added to activation events
 type ActivationEventData struct {
+	ErrorEventData
 	AppEUI   AppEUI   `json:"app_eui"`
 	DevEUI   DevEUI   `json:"dev_eui"`
 	DevAddr  DevAddr  `json:"dev_addr"`
@@ -51,7 +58,9 @@ type DownlinkEventConfigInfo struct {
 
 // DownlinkEventData is added to downlink events
 type DownlinkEventData struct {
-	Payload   []byte                  `json:"payload"`
-	GatewayID string                  `json:"gateway_id"`
-	Config    DownlinkEventConfigInfo `json:"config"`
+	ErrorEventData
+	Payload   []byte                  `json:"payload,omitempty"`
+	Message   *DownlinkMessage        `json:"message,omitempty"`
+	GatewayID string                  `json:"gateway_id,omitempty"`
+	Config    DownlinkEventConfigInfo `json:"config,omitempty"`
 }

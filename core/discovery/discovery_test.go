@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package discovery
@@ -43,7 +43,7 @@ func TestDiscoveryAnnounce(t *testing.T) {
 	err := d.Announce(broker1a)
 	a.So(err, ShouldBeNil)
 
-	services, err := d.GetAll("broker")
+	services, err := d.GetAll("broker", 0, 0)
 	a.So(err, ShouldBeNil)
 	a.So(services, ShouldHaveLength, 1)
 	a.So(services[0].NetAddress, ShouldEqual, "current address")
@@ -51,7 +51,7 @@ func TestDiscoveryAnnounce(t *testing.T) {
 	err = d.Announce(broker1b)
 	a.So(err, ShouldBeNil)
 
-	services, err = d.GetAll("broker")
+	services, err = d.GetAll("broker", 0, 0)
 	a.So(err, ShouldBeNil)
 	a.So(services, ShouldHaveLength, 1)
 	a.So(services[0].NetAddress, ShouldEqual, "updated address")
@@ -59,7 +59,7 @@ func TestDiscoveryAnnounce(t *testing.T) {
 	err = d.Announce(broker2)
 	a.So(err, ShouldBeNil)
 
-	services, err = d.GetAll("broker")
+	services, err = d.GetAll("broker", 0, 0)
 	a.So(err, ShouldBeNil)
 	a.So(services, ShouldHaveLength, 2)
 
@@ -81,16 +81,16 @@ func TestDiscoveryDiscover(t *testing.T) {
 	d.Announce(&pb.Announcement{ServiceName: "broker", Id: "broker2.1"})
 	d.Announce(&pb.Announcement{ServiceName: "broker", Id: "broker2.2"})
 
-	services, err := d.GetAll("random")
+	services, err := d.GetAll("random", 0, 0)
 	a.So(err, ShouldBeNil)
 	a.So(services, ShouldBeEmpty)
 
-	services, err = d.GetAll("router")
+	services, err = d.GetAll("router", 0, 0)
 	a.So(err, ShouldBeNil)
 	a.So(services, ShouldHaveLength, 1)
 	a.So(services[0].Id, ShouldEqual, "router2.0")
 
-	services, err = d.GetAll("broker")
+	services, err = d.GetAll("broker", 0, 0)
 	a.So(err, ShouldBeNil)
 	a.So(services, ShouldHaveLength, 2)
 
@@ -108,12 +108,10 @@ func TestDiscoveryMetadata(t *testing.T) {
 	}()
 
 	broker3 := &pb.Announcement{ServiceName: "broker", Id: "broker3", Metadata: []*pb.Metadata{&pb.Metadata{
-		Key:   pb.Metadata_APP_ID,
-		Value: []byte("app-id-1"),
+		Metadata: &pb.Metadata_AppId{AppId: "app-id-1"},
 	}}}
 	broker4 := &pb.Announcement{ServiceName: "broker", Id: "broker4", Metadata: []*pb.Metadata{&pb.Metadata{
-		Key:   pb.Metadata_APP_ID,
-		Value: []byte("app-id-2"),
+		Metadata: &pb.Metadata_AppId{AppId: "app-id-2"},
 	}}}
 
 	// Announce should not change metadata
@@ -127,8 +125,7 @@ func TestDiscoveryMetadata(t *testing.T) {
 
 	// AddMetadata should add one
 	err = d.AddMetadata("broker", "broker3", &pb.Metadata{
-		Key:   pb.Metadata_APP_ID,
-		Value: []byte("app-id-2"),
+		Metadata: &pb.Metadata_AppId{AppId: "app-id-2"},
 	})
 	a.So(err, ShouldBeNil)
 	service, err = d.Get("broker", "broker3")
@@ -142,8 +139,7 @@ func TestDiscoveryMetadata(t *testing.T) {
 
 	// AddMetadata again should not add one
 	err = d.AddMetadata("broker", "broker3", &pb.Metadata{
-		Key:   pb.Metadata_APP_ID,
-		Value: []byte("app-id-2"),
+		Metadata: &pb.Metadata_AppId{AppId: "app-id-2"},
 	})
 	service, err = d.Get("broker", "broker3")
 	a.So(err, ShouldBeNil)
@@ -151,8 +147,7 @@ func TestDiscoveryMetadata(t *testing.T) {
 
 	// DeleteMetadata for non-existing should not delete one
 	err = d.DeleteMetadata("broker", "broker3", &pb.Metadata{
-		Key:   pb.Metadata_APP_ID,
-		Value: []byte("app-id-3"),
+		Metadata: &pb.Metadata_AppId{AppId: "app-id-3"},
 	})
 	a.So(err, ShouldBeNil)
 	service, err = d.Get("broker", "broker3")
@@ -168,8 +163,7 @@ func TestDiscoveryMetadata(t *testing.T) {
 
 	// DeleteMetadata should delete one
 	err = d.DeleteMetadata("broker", "broker3", &pb.Metadata{
-		Key:   pb.Metadata_APP_ID,
-		Value: []byte("app-id-2"),
+		Metadata: &pb.Metadata_AppId{AppId: "app-id-2"},
 	})
 	a.So(err, ShouldBeNil)
 	service, err = d.Get("broker", "broker3")

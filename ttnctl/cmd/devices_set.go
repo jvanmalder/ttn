@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -6,10 +6,10 @@ package cmd
 import (
 	"os"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/api"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/ttnctl/util"
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 )
 
@@ -24,11 +24,7 @@ var devicesSetCmd = &cobra.Command{
   INFO Updated device                           AppID=test DevID=test
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-
-		if len(args) == 0 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
+		assertArgsLength(cmd, args, 1, 1)
 
 		devID := args[0]
 		if !api.ValidID(devID) {
@@ -140,12 +136,28 @@ var devicesSetCmd = &cobra.Command{
 			dev.GetLorawanDevice().Uses32BitFCnt = false
 		}
 
+		if in, err := cmd.Flags().GetFloat32("latitude"); err == nil && in != 0 {
+			dev.Latitude = in
+		}
+
+		if in, err := cmd.Flags().GetFloat32("longitude"); err == nil && in != 0 {
+			dev.Longitude = in
+		}
+
+		if in, err := cmd.Flags().GetInt32("altitude"); err == nil && in != 0 {
+			dev.Altitude = in
+		}
+
+		if in, err := cmd.Flags().GetString("description"); err == nil && in != "" {
+			dev.Description = in
+		}
+
 		err = manager.SetDevice(dev)
 		if err != nil {
 			ctx.WithError(err).Fatal("Could not update Device")
 		}
 
-		ctx.WithFields(log.Fields{
+		ctx.WithFields(ttnlog.Fields{
 			"AppID": appID,
 			"DevID": devID,
 		}).Info("Updated device")
@@ -171,4 +183,10 @@ func init() {
 	devicesSetCmd.Flags().Bool("enable-fcnt-check", false, "Enable FCnt check (default)")
 	devicesSetCmd.Flags().Bool("32-bit-fcnt", false, "Use 32 bit FCnt (default)")
 	devicesSetCmd.Flags().Bool("16-bit-fcnt", false, "Use 16 bit FCnt")
+
+	devicesSetCmd.Flags().Float32("latitude", 0, "Set latitude")
+	devicesSetCmd.Flags().Float32("longitude", 0, "Set longitude")
+	devicesSetCmd.Flags().Int32("altitude", 0, "Set altitude")
+
+	devicesSetCmd.Flags().String("description", "", "Set Description")
 }

@@ -1,7 +1,11 @@
+// Copyright © 2017 The Things Network
+// Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+
 package lorawan
 
 import (
 	"github.com/TheThingsNetwork/ttn/api"
+	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
 )
 
@@ -24,10 +28,10 @@ func (m *Device) Validate() error {
 	if m.DevEui == nil || m.DevEui.IsEmpty() {
 		return errors.NewErrInvalidArgument("DevEui", "can not be empty")
 	}
-	if err := api.NotEmptyAndValidId(m.AppId, "AppId"); err != nil {
+	if err := api.NotEmptyAndValidID(m.AppId, "AppId"); err != nil {
 		return err
 	}
-	if err := api.NotEmptyAndValidId(m.DevId, "DevId"); err != nil {
+	if err := api.NotEmptyAndValidID(m.DevId, "DevId"); err != nil {
 		return err
 	}
 	return nil
@@ -39,6 +43,9 @@ func (m *Metadata) Validate() error {
 	case Modulation_LORA:
 		if m.DataRate == "" {
 			return errors.NewErrInvalidArgument("DataRate", "can not be empty")
+		}
+		if _, err := types.ParseDataRate(m.DataRate); err != nil {
+			return errors.NewErrInvalidArgument("DataRate", err.Error())
 		}
 	case Modulation_FSK:
 		if m.BitRate == 0 {
@@ -57,6 +64,9 @@ func (m *TxConfiguration) Validate() error {
 	case Modulation_LORA:
 		if m.DataRate == "" {
 			return errors.NewErrInvalidArgument("DataRate", "can not be empty")
+		}
+		if _, err := types.ParseDataRate(m.DataRate); err != nil {
+			return errors.NewErrInvalidArgument("DataRate", err.Error())
 		}
 	case Modulation_FSK:
 		if m.BitRate == 0 {

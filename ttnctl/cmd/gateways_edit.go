@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -12,16 +12,13 @@ import (
 
 var gatewaysEditCmd = &cobra.Command{
 	Use:   "edit [GatewayID]",
-	Short: "edit a gateway",
+	Short: "Edit a gateway",
 	Long:  `ttnctl gateways edit can be used to edit settings of a gateway`,
 	Example: `$ ttnctl gateways edit test --location 52.37403,4.88968 --frequency-plan EU
   INFO Edited gateway                          Gateway ID=test
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) != 1 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
+		assertArgsLength(cmd, args, 1, 1)
 
 		gatewayID := args[0]
 		if !api.ValidID(gatewayID) {

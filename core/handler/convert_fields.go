@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
@@ -8,17 +8,18 @@ import (
 	"reflect"
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
+	"github.com/TheThingsNetwork/ttn/core/handler/device"
 	"github.com/TheThingsNetwork/ttn/core/handler/functions"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
-	"github.com/apex/log"
 )
 
 // ConvertFieldsUp converts the payload to fields using payload functions
-func (h *handler) ConvertFieldsUp(ctx log.Interface, ttnUp *pb_broker.DeduplicatedUplinkMessage, appUp *types.UplinkMessage) error {
+func (h *handler) ConvertFieldsUp(ctx ttnlog.Interface, _ *pb_broker.DeduplicatedUplinkMessage, appUp *types.UplinkMessage, _ *device.Device) error {
 	// Find Application
-	app, err := h.applications.Get(ttnUp.AppId)
+	app, err := h.applications.Get(appUp.AppID)
 	if err != nil {
 		return nil // Do not process if application not found
 	}
@@ -32,7 +33,18 @@ func (h *handler) ConvertFieldsUp(ctx log.Interface, ttnUp *pb_broker.Deduplicat
 
 	fields, valid, err := functions.Process(appUp.PayloadRaw, appUp.FPort)
 	if err != nil {
-		return nil // Do not set fields if processing failed
+
+		// Emit the error
+		h.mqttEvent <- &types.DeviceEvent{
+			AppID: appUp.AppID,
+			DevID: appUp.DevID,
+			Event: types.UplinkErrorEvent,
+			Data:  types.ErrorEventData{Error: err.Error()},
+		}
+
+		// Do not set fields if processing failed, but allow the handler to continue processing
+		// without payload functions
+		return nil
 	}
 
 	if !valid {
@@ -66,7 +78,7 @@ var timeOut = 100 * time.Millisecond
 // Decode decodes the payload using the Decoder function into a map
 func (f *UplinkFunctions) Decode(payload []byte, port uint8) (map[string]interface{}, error) {
 	if f.Decoder == "" {
-		return nil, errors.NewErrInternal("Decoder function not set")
+		return nil, nil
 	}
 
 	env := map[string]interface{}{
@@ -78,7 +90,7 @@ func (f *UplinkFunctions) Decode(payload []byte, port uint8) (map[string]interfa
 		Decoder(payload.slice(0), port);
 	`, f.Decoder)
 
-	value, err := functions.RunCode("decoder", code, env, timeOut, f.Logger)
+	value, err := functions.RunCode("Decoder", code, env, timeOut, f.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +125,7 @@ func (f *UplinkFunctions) Convert(fields map[string]interface{}, port uint8) (ma
 		Converter(fields, port)
 	`, f.Converter)
 
-	value, err := functions.RunCode("converter", code, env, timeOut, f.Logger)
+	value, err := functions.RunCode("Converter", code, env, timeOut, f.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +159,7 @@ func (f *UplinkFunctions) Validate(fields map[string]interface{}, port uint8) (b
 		Validator(fields, port)
 	`, f.Validator)
 
-	value, err := functions.RunCode("valdator", code, env, timeOut, f.Logger)
+	value, err := functions.RunCode("Validator", code, env, timeOut, f.Logger)
 	if err != nil {
 		return false, err
 	}
@@ -189,7 +201,7 @@ type DownlinkFunctions struct {
 // If no encoder function is set, this function returns an array.
 func (f *DownlinkFunctions) Encode(payload map[string]interface{}, port uint8) ([]byte, error) {
 	if f.Encoder == "" {
-		return nil, errors.NewErrInternal("Encoder function not set")
+		return nil, errors.NewErrInvalidArgument("Downlink Payload", "fields supplied, but no Encoder function set")
 	}
 
 	env := map[string]interface{}{
@@ -201,7 +213,7 @@ func (f *DownlinkFunctions) Encode(payload map[string]interface{}, port uint8) (
 		Encoder(payload, port)
 	`, f.Encoder)
 
-	value, err := functions.RunCode("encoder", code, env, timeOut, f.Logger)
+	value, err := functions.RunCode("Encoder", code, env, timeOut, f.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -284,8 +296,8 @@ func (f *DownlinkFunctions) Process(payload map[string]interface{}, port uint8) 
 }
 
 // ConvertFieldsDown converts the fields into a payload
-func (h *handler) ConvertFieldsDown(ctx log.Interface, appDown *types.DownlinkMessage, ttnDown *pb_broker.DownlinkMessage) error {
-	if appDown.PayloadFields == nil {
+func (h *handler) ConvertFieldsDown(ctx ttnlog.Interface, appDown *types.DownlinkMessage, ttnDown *pb_broker.DownlinkMessage, _ *device.Device) error {
+	if appDown.PayloadFields == nil || len(appDown.PayloadFields) == 0 {
 		return nil
 	}
 

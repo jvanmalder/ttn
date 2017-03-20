@@ -1,4 +1,6 @@
-// Copyright © 2016 The Things Network
+// +build !homebrew
+
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -6,8 +8,8 @@ package cmd
 import (
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/utils/version"
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -19,11 +21,13 @@ var versionCmd = &cobra.Command{
 	Short: "Get build and version information",
 	Long:  `ttnctl version gets the build and version information of ttnctl`,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 0, 0)
+
 		gitBranch := viper.GetString("gitBranch")
 		gitCommit := viper.GetString("gitCommit")
 		buildDate := viper.GetString("buildDate")
 
-		ctx.WithFields(log.Fields{
+		ctx.WithFields(ttnlog.Fields{
 			"Version":   viper.GetString("version"),
 			"Branch":    gitBranch,
 			"Commit":    gitCommit,

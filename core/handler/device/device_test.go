@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package device
@@ -28,4 +28,11 @@ func TestDeviceChangedFields(t *testing.T) {
 
 	a.So(device.ChangedFields(), ShouldHaveLength, 1)
 	a.So(device.ChangedFields(), ShouldContain, "DevID")
+}
+
+func TestDeviceGetLoRaWAN(t *testing.T) {
+	device := &Device{
+		DevID: "Device",
+	}
+	device.GetLoRaWAN()
 }

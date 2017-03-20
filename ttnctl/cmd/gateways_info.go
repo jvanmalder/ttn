@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -13,13 +13,10 @@ import (
 
 var gatewaysInfoCmd = &cobra.Command{
 	Use:   "info [GatewayID]",
-	Short: "get info about a gateway",
+	Short: "Get info about a gateway",
 	Long:  `ttnctl gateways info can be used to get information about a gateway`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) != 1 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
+		assertArgsLength(cmd, args, 1, 1)
 
 		gatewayID := args[0]
 		if !api.ValidID(gatewayID) {

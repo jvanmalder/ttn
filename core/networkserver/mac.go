@@ -1,3 +1,6 @@
+// Copyright © 2017 The Things Network
+// Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+
 package networkserver
 
 import (
@@ -5,6 +8,8 @@ import (
 
 	pb_gateway "github.com/TheThingsNetwork/ttn/api/gateway"
 )
+
+const macCMD = "cmd" // For Tracing
 
 type bySNR []*pb_gateway.RxMetadata
 

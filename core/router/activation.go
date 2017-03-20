@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package router
@@ -9,27 +9,29 @@ import (
 	"time"
 
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
+	"github.com/TheThingsNetwork/ttn/api/fields"
 	pb_protocol "github.com/TheThingsNetwork/ttn/api/protocol"
 	pb_lorawan "github.com/TheThingsNetwork/ttn/api/protocol/lorawan"
 	pb "github.com/TheThingsNetwork/ttn/api/router"
+	"github.com/TheThingsNetwork/ttn/api/trace"
+	"github.com/TheThingsNetwork/ttn/core/band"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
-	"github.com/apex/log"
 )
 
 func (r *router) HandleActivation(gatewayID string, activation *pb.DeviceActivationRequest) (res *pb.DeviceActivationResponse, err error) {
-	ctx := r.Ctx.WithFields(log.Fields{
-		"GatewayID": gatewayID,
-		"AppEUI":    *activation.AppEui,
-		"DevEUI":    *activation.DevEui,
-	})
+	ctx := r.Ctx.WithField("GatewayID", gatewayID).WithFields(fields.Get(activation))
 	start := time.Now()
 	defer func() {
 		if err != nil {
+			activation.Trace = activation.Trace.WithEvent(trace.DropEvent, "reason", err)
 			ctx.WithError(err).Warn("Could not handle activation")
 		} else {
 			ctx.WithField("Duration", time.Now().Sub(start)).Info("Handled activation")
 		}
 	}()
+	r.status.activations.Mark(1)
+
+	activation.Trace = activation.Trace.WithEvent(trace.ReceiveEvent, "gateway", gatewayID)
 
 	gateway := r.getGateway(gatewayID)
 	gateway.LastSeen = time.Now()
@@ -38,6 +40,7 @@ func (r *router) HandleActivation(gatewayID string, activation *pb.DeviceActivat
 		Payload:          activation.Payload,
 		ProtocolMetadata: activation.ProtocolMetadata,
 		GatewayMetadata:  activation.GatewayMetadata,
+		Trace:            activation.Trace,
 	}
 
 	if err = gateway.HandleUplink(uplink); err != nil {
@@ -49,6 +52,9 @@ func (r *router) HandleActivation(gatewayID string, activation *pb.DeviceActivat
 	}
 
 	downlinkOptions := r.buildDownlinkOptions(uplink, true, gateway)
+	activation.Trace = uplink.Trace.WithEvent(trace.BuildDownlinkEvent,
+		"options", len(downlinkOptions),
+	)
 
 	// Find Broker
 	brokers, err := r.Discovery.GetAll("broker")
@@ -72,6 +78,7 @@ func (r *router) HandleActivation(gatewayID string, activation *pb.DeviceActivat
 			},
 		},
 		DownlinkOptions: downlinkOptions,
+		Trace:           activation.Trace,
 	}
 
 	// Prepare LoRaWAN activation
@@ -81,22 +88,28 @@ func (r *router) HandleActivation(gatewayID string, activation *pb.DeviceActivat
 	}
 	region := status.Region
 	if region == "" {
-		region = guessRegion(uplink.GatewayMetadata.Frequency)
+		region = band.Guess(uplink.GatewayMetadata.Frequency)
 	}
-	band, err := getBand(region)
+	band, err := band.Get(region)
 	if err != nil {
 		return nil, err
 	}
 	lorawan := request.ActivationMetadata.GetLorawan()
+	lorawan.Region = pb_lorawan.Region(pb_lorawan.Region_value[region])
 	lorawan.Rx1DrOffset = 0
 	lorawan.Rx2Dr = uint32(band.RX2DataRate)
 	lorawan.RxDelay = uint32(band.ReceiveDelay1.Seconds())
-	switch region {
-	case "EU_863_870":
-		lorawan.CfList = &pb_lorawan.CFList{Freq: []uint32{867100000, 867300000, 867500000, 867700000, 867900000}}
+	if band.CFList != nil {
+		lorawan.CfList = new(pb_lorawan.CFList)
+		for _, freq := range band.CFList {
+			lorawan.CfList.Freq = append(lorawan.CfList.Freq, freq)
+		}
 	}
 
 	ctx = ctx.WithField("NumBrokers", len(brokers))
+	request.Trace = request.Trace.WithEvent(trace.ForwardEvent,
+		"brokers", len(brokers),
+	)
 
 	// Forward to all brokers and collect responses
 	var wg sync.WaitGroup
@@ -132,7 +145,9 @@ func (r *router) HandleActivation(gatewayID string, activation *pb.DeviceActivat
 			gotFirst = true
 			downlink := &pb_broker.DownlinkMessage{
 				Payload:        res.Payload,
+				Message:        res.Message,
 				DownlinkOption: res.DownlinkOption,
+				Trace:          res.Trace,
 			}
 			err := r.HandleDownlink(downlink)
 			if err != nil {

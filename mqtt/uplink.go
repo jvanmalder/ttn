@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package mqtt
@@ -43,7 +43,7 @@ func (c *DefaultClient) PublishUplinkFields(appID string, location string, devID
 		for _, token := range tokens {
 			token.Wait()
 			if token.Error() != nil {
-				fmt.Println(token.Error())
+				c.ctx.Warnf("Error publishing uplink fields: %s", token.Error().Error())
 				t.err = token.Error()
 			}
 		}

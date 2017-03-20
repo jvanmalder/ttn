@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -34,10 +34,7 @@ var gatewaysStatusCmd = &cobra.Command{
                   Tx: (in: 0; ok: 0)
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) != 1 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
+		assertArgsLength(cmd, args, 1, 1)
 
 		gtwID := args[0]
 		if !api.ValidID(gtwID) {
@@ -67,6 +64,7 @@ var gatewaysStatusCmd = &cobra.Command{
 		printKV("Platform", resp.Status.Platform)
 		printKV("Contact email", resp.Status.ContactEmail)
 		printKV("Region", resp.Status.Region)
+		printKV("Bridge", resp.Status.Bridge)
 		printKV("IP Address", strings.Join(resp.Status.Ip, ", "))
 		printKV("GPS coordinates", func() interface{} {
 			if gps := resp.Status.Gps; gps != nil && !(gps.Latitude == 0 && gps.Longitude == 0) {

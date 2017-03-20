@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
@@ -6,19 +6,22 @@ package handler
 import (
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
+	"github.com/TheThingsNetwork/ttn/api/trace"
 	"github.com/TheThingsNetwork/ttn/core/types"
-	"github.com/apex/log"
+	"github.com/TheThingsNetwork/ttn/utils/errors"
 )
 
 func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error) {
 	appID, location, devID := appDownlink.AppID, appDownlink.Location, appDownlink.DevID
 
-	ctx := h.Ctx.WithFields(log.Fields{
+	ctx := h.Ctx.WithFields(ttnlog.Fields{
 		"AppID": appID,
 		"Location": location,
 		"DevID": devID,
 	})
+
 	start := time.Now()
 	defer func() {
 		if err != nil {
@@ -28,21 +31,58 @@ func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error
 		}
 	}()
 
+	// Check if device exists
 	dev, err := h.devices.Get(appID, devID)
 	if err != nil {
 		return err
 	}
+	dev.StartUpdate()
+
+	defer func() {
+		if err != nil {
+			h.mqttEvent <- &types.DeviceEvent{
+				AppID: appID,
+				DevID: devID,
+				Event: types.DownlinkErrorEvent,
+				Data: types.DownlinkEventData{
+					ErrorEventData: types.ErrorEventData{Error: err.Error()},
+					Message:        appDownlink,
+				},
+			}
+		}
+	}()
 
 	// Clear redundant fields
 	appDownlink.AppID = ""
 	appDownlink.Location = ""
 	appDownlink.DevID = ""
 
-	dev.StartUpdate()
-	dev.NextDownlink = appDownlink
 	dev.Location = location // update location on downlink, as this is the easiest way of getting the current location
-	err = h.devices.Set(dev)
+	queue, err := h.devices.DownlinkQueue(appID, devID)
 	if err != nil {
+		return err
+	}
+
+	schedule := appDownlink.Schedule
+	appDownlink.Schedule = ""
+
+	switch schedule {
+	case types.ScheduleReplace, "": // Empty string for default
+		dev.CurrentDownlink = nil
+		err = queue.Replace(appDownlink)
+	case types.ScheduleFirst:
+		err = queue.PushFirst(appDownlink)
+	case types.ScheduleLast:
+		err = queue.PushLast(appDownlink)
+	default:
+		return errors.NewErrInvalidArgument("ScheduleType", "unknown")
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if err := h.devices.Set(dev); err != nil {
 		return err
 	}
 
@@ -51,15 +91,18 @@ func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error
 		Location: location,
 		DevID: devID,
 		Event: types.DownlinkScheduledEvent,
+		Data: types.DownlinkEventData{
+			Message: appDownlink,
+		},
 	}
 
 	return nil
 }
 
-func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *pb_broker.DownlinkMessage) error {
+func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *pb_broker.DownlinkMessage) (err error) {
 	appID, location, devID := appDownlink.AppID, appDownlink.Location, appDownlink.DevID
 
-	ctx := h.Ctx.WithFields(log.Fields{
+	ctx := h.Ctx.WithFields(ttnlog.Fields{
 		"AppID":  appID,
 		"Location": location,
 		"DevID":  devID,
@@ -67,7 +110,6 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 		"DevEUI": downlink.DevEui,
 	})
 
-	var err error
 	defer func() {
 		if err != nil {
 			h.mqttEvent <- &types.DeviceEvent{
@@ -75,9 +117,24 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 				Location: location,
 				DevID: devID,
 				Event: types.DownlinkErrorEvent,
-				Data:  types.ErrorEventData{Error: err.Error()},
+				Data: types.DownlinkEventData{
+					ErrorEventData: types.ErrorEventData{Error: err.Error()},
+					Message:        appDownlink,
+				},
 			}
 			ctx.WithError(err).Warn("Could not handle downlink")
+		}
+	}()
+
+	dev, err := h.devices.Get(appID, devID)
+	if err != nil {
+		return err
+	}
+	dev.StartUpdate()
+	defer func() {
+		setErr := h.devices.Set(dev)
+		if err == nil {
+			err = setErr
 		}
 	}()
 
@@ -88,10 +145,11 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 	}
 
 	ctx.WithField("NumProcessors", len(processors)).Debug("Running Downlink Processors")
+	downlink.Trace = downlink.Trace.WithEvent("process downlink")
 
 	// Run Processors
 	for _, processor := range processors {
-		err = processor(ctx, appDownlink, downlink)
+		err = processor(ctx, appDownlink, downlink, dev)
 		if err == ErrNotNeeded {
 			err = nil
 			return nil
@@ -100,7 +158,14 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 		}
 	}
 
+	downlink.Message = nil
+	downlink.UnmarshalPayload()
+
+	h.status.downlink.Mark(1)
+
 	ctx.Debug("Send Downlink")
+
+	downlink.Trace = downlink.Trace.WithEvent(trace.ForwardEvent, "broker", h.ttnBrokerID)
 
 	h.downlink <- downlink
 
@@ -126,6 +191,7 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 		Event: types.DownlinkSentEvent,
 		Data: types.DownlinkEventData{
 			Payload:   downlink.Payload,
+			Message:   appDownlink,
 			GatewayID: downlink.DownlinkOption.GatewayId,
 			Config:    downlinkConfig,
 		},

@@ -1,24 +1,25 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
 
 import (
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/ttnctl/util"
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 )
 
 var applicationsRegisterCmd = &cobra.Command{
 	Use:   "register",
 	Short: "Register this application with the handler",
-	Long:  `ttnctl register can be used to register this application with the handler.`,
+	Long:  `ttnctl applications register can be used to register this application with the handler.`,
 	Example: `$ ttnctl applications register
   INFO Discovering Handler...
   INFO Connecting with Handler...
   INFO Registered application                   AppID=test
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 0, 0)
 
 		appID := util.GetAppID(ctx)
 
@@ -30,7 +31,7 @@ var applicationsRegisterCmd = &cobra.Command{
 			ctx.WithError(err).Fatal("Could not register application")
 		}
 
-		ctx.WithFields(log.Fields{
+		ctx.WithFields(ttnlog.Fields{
 			"AppID": appID,
 		}).Infof("Registered application")
 	},

@@ -1,16 +1,16 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package router
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
 	pb_gateway "github.com/TheThingsNetwork/ttn/api/gateway"
+	"github.com/TheThingsNetwork/ttn/api/monitor"
 	pb_protocol "github.com/TheThingsNetwork/ttn/api/protocol"
 	pb_lorawan "github.com/TheThingsNetwork/ttn/api/protocol/lorawan"
 	pb "github.com/TheThingsNetwork/ttn/api/router"
@@ -40,12 +40,15 @@ func newReferenceDownlink() *pb.DownlinkMessage {
 func TestHandleDownlink(t *testing.T) {
 	a := New(t)
 
+	logger := GetLogger(t, "TestHandleDownlink")
 	r := &router{
 		Component: &component.Component{
-			Ctx: GetLogger(t, "TestHandleDownlink"),
+			Ctx:     logger,
+			Monitor: monitor.NewClient(monitor.DefaultClientConfig),
 		},
 		gateways: map[string]*gateway.Gateway{},
 	}
+	r.InitStatus()
 
 	gtwID := "eui-0102030405060708"
 	id, _ := r.getGateway(gtwID).Schedule.GetOption(0, 10*1000)
@@ -65,12 +68,15 @@ func TestHandleDownlink(t *testing.T) {
 func TestSubscribeUnsubscribeDownlink(t *testing.T) {
 	a := New(t)
 
+	logger := GetLogger(t, "TestSubscribeUnsubscribeDownlink")
 	r := &router{
 		Component: &component.Component{
-			Ctx: GetLogger(t, "TestSubscribeUnsubscribeDownlink"),
+			Ctx:     logger,
+			Monitor: monitor.NewClient(monitor.DefaultClientConfig),
 		},
 		gateways: map[string]*gateway.Gateway{},
 	}
+	r.InitStatus()
 
 	gtwID := "eui-0102030405060708"
 	gateway.Deadline = 1 * time.Millisecond
@@ -78,7 +84,7 @@ func TestSubscribeUnsubscribeDownlink(t *testing.T) {
 	gtw.Schedule.Sync(0)
 	id, _ := gtw.Schedule.GetOption(5000, 10*1000)
 
-	ch, err := r.SubscribeDownlink(gtwID)
+	ch, err := r.SubscribeDownlink(gtwID, "")
 	a.So(err, ShouldBeNil)
 
 	var wg sync.WaitGroup
@@ -106,7 +112,7 @@ func TestSubscribeUnsubscribeDownlink(t *testing.T) {
 	// Wait for the downlink to arrive
 	<-time.After(10 * time.Millisecond)
 
-	err = r.UnsubscribeDownlink(gtwID)
+	err = r.UnsubscribeDownlink(gtwID, "")
 	a.So(err, ShouldBeNil)
 
 	wg.Wait()
@@ -313,6 +319,76 @@ func TestUplinkBuildDownlinkOptionsDataRate(t *testing.T) {
 		a.So(options, ShouldHaveLength, 2)
 		a.So(options[1].ProtocolConfig.GetLorawan().DataRate, ShouldEqual, drDown)
 	}
+
+	gtw = newReferenceGateway(t, "CN_470_510")
+
+	// Supported datarates use RX1 (on the same datarate) for downlink
+	ttnCNDataRates := []string{
+		"SF7BW125",
+		"SF8BW125",
+		"SF9BW125",
+		"SF10BW125",
+		"SF11BW125",
+		"SF12BW125",
+	}
+	for _, dr := range ttnCNDataRates {
+		up := newReferenceUplink()
+		up.GatewayMetadata.Frequency = 470300000
+		up.ProtocolMetadata.GetLorawan().DataRate = dr
+		options := r.buildDownlinkOptions(up, false, gtw)
+		a.So(options, ShouldHaveLength, 2)
+		a.So(options[1].ProtocolConfig.GetLorawan().DataRate, ShouldEqual, dr)
+		a.So(options[1].GatewayConfig.Frequency, ShouldEqual, 500300000)
+		a.So(options[0].ProtocolConfig.GetLorawan().DataRate, ShouldEqual, "SF12BW125")
+		a.So(options[0].GatewayConfig.Frequency, ShouldEqual, 505300000)
+	}
+
+	gtw = newReferenceGateway(t, "AS_923")
+
+	// Supported datarates use RX1 (on the same datarate) for downlink
+	ttnASDataRates := map[string]string{
+		"SF7BW125":  "SF7BW125",
+		"SF8BW125":  "SF8BW125",
+		"SF9BW125":  "SF9BW125",
+		"SF10BW125": "SF10BW125",
+		"SF11BW125": "SF10BW125", // MinDR = 2
+		"SF12BW125": "SF10BW125", // MinDR = 2
+	}
+	for drUp, drDown := range ttnASDataRates {
+		up := newReferenceUplink()
+		up.GatewayMetadata.Frequency = 923200000
+		up.ProtocolMetadata.GetLorawan().DataRate = drUp
+		options := r.buildDownlinkOptions(up, false, gtw)
+		a.So(options, ShouldHaveLength, 2)
+		a.So(options[1].ProtocolConfig.GetLorawan().DataRate, ShouldEqual, drDown)
+		a.So(options[1].GatewayConfig.Frequency, ShouldEqual, 923200000)
+		a.So(options[0].ProtocolConfig.GetLorawan().DataRate, ShouldEqual, "SF10BW125")
+		a.So(options[0].GatewayConfig.Frequency, ShouldEqual, 923200000)
+	}
+
+	gtw = newReferenceGateway(t, "KR_920_923")
+
+	// Supported datarates use RX1 (on the same datarate) for downlink
+	ttnKRDataRates := []string{
+		"SF7BW125",
+		"SF8BW125",
+		"SF9BW125",
+		"SF10BW125",
+		"SF11BW125",
+		"SF12BW125",
+	}
+	for _, dr := range ttnKRDataRates {
+		up := newReferenceUplink()
+		up.GatewayMetadata.Frequency = 922100000
+		up.ProtocolMetadata.GetLorawan().DataRate = dr
+		options := r.buildDownlinkOptions(up, false, gtw)
+		a.So(options, ShouldHaveLength, 2)
+		a.So(options[1].ProtocolConfig.GetLorawan().DataRate, ShouldEqual, dr)
+		a.So(options[1].GatewayConfig.Frequency, ShouldEqual, 922100000)
+		a.So(options[0].ProtocolConfig.GetLorawan().DataRate, ShouldEqual, "SF12BW125")
+		a.So(options[0].GatewayConfig.Frequency, ShouldEqual, 921900000)
+	}
+
 }
 
 // Note: This test uses r.buildDownlinkOptions which in turn calls computeDownlinkScores
@@ -378,8 +454,6 @@ func TestComputeDownlinkScores(t *testing.T) {
 	options = r.buildDownlinkOptions(testSubject, false, testSubjectgtw)
 	a.So(options, ShouldHaveLength, 1) // RX1 Removed
 	a.So(options[0].GatewayConfig.Frequency, ShouldNotEqual, 868100000)
-
-	fmt.Println()
 
 	// European Duty-cycle Preferences - Prefer RX1 for low SF
 	testSubject = newReferenceUplink()

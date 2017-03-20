@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package mqtt
@@ -16,8 +16,6 @@ type ActivationHandler func(client Client, appID string, devID string, req types
 func (c *DefaultClient) PublishActivation(activation types.Activation) Token {
 	appID := activation.AppID
 	devID := activation.DevID
-	activation.AppID = ""
-	activation.DevID = ""
 	return c.PublishDeviceEvent(appID, "", devID, types.ActivationEvent, activation)
 }
 

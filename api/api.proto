@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 syntax = "proto3";
@@ -47,15 +47,19 @@ message SystemStats {
 }
 
 message ComponentStats {
+  uint64  uptime = 1;
   message CPUStats {
     float user   = 1;
     float system = 2;
     float idle   = 3;
   }
-  CPUStats cpu = 1;
+  CPUStats cpu = 2;
   message MemoryStats {
     uint64 memory = 1;
     uint64 swap   = 2;
+
+    uint64 heap   = 10;
+    uint64 stack  = 11;
   }
   MemoryStats memory = 3;
 

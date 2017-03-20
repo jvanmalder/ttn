@@ -1,3 +1,6 @@
+// Copyright © 2017 The Things Network
+// Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+
 package discovery
 
 import (
@@ -7,7 +10,7 @@ import (
 
 // Validate implements the api.Validator interface
 func (m *Announcement) Validate() error {
-	if err := api.NotEmptyAndValidId(m.Id, "Id"); err != nil {
+	if err := api.NotEmptyAndValidID(m.Id, "Id"); err != nil {
 		return err
 	}
 	switch m.ServiceName {

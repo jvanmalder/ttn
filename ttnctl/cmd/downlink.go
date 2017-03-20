@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -27,14 +27,10 @@ $ ttnctl downlink test --json '{"led":"on"}'
   INFO Enqueued downlink                        AppID=test DevID=test
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 2, 2)
+
 		client := util.GetMQTT(ctx)
 		defer client.Disconnect()
-
-		if len(args) < 2 {
-			ctx.Info("Not enough arguments. Please, provide a devId and a Payload")
-			cmd.UsageFunc()(cmd)
-			return
-		}
 
 		appID := util.GetAppID(ctx)
 		ctx = ctx.WithField("AppID", appID)
@@ -46,21 +42,25 @@ $ ttnctl downlink test --json '{"led":"on"}'
 		ctx = ctx.WithField("DevID", devID)
 
 		jsonflag, err := cmd.Flags().GetBool("json")
-
 		if err != nil {
 			ctx.WithError(err).Fatal("Failed to read json flag")
 		}
 
 		fPort, err := cmd.Flags().GetInt("fport")
-
 		if err != nil {
 			ctx.WithError(err).Fatal("Failed to read fport flag")
 		}
 
+		confirmed, err := cmd.Flags().GetBool("confirmed")
+		if err != nil {
+			ctx.WithError(err).Fatal("Failed to read confirmed flag")
+		}
+
 		message := types.DownlinkMessage{
-			AppID: appID,
-			DevID: devID,
-			FPort: uint8(fPort),
+			AppID:     appID,
+			DevID:     devID,
+			FPort:     uint8(fPort),
+			Confirmed: confirmed,
 		}
 
 		if args[1] == "" {
@@ -102,5 +102,6 @@ $ ttnctl downlink test --json '{"led":"on"}'
 func init() {
 	RootCmd.AddCommand(downlinkCmd)
 	downlinkCmd.Flags().Int("fport", 1, "FPort for downlink")
+	downlinkCmd.Flags().Bool("confirmed", false, "Confirmed downlink")
 	downlinkCmd.Flags().Bool("json", false, "Provide the payload as JSON")
 }

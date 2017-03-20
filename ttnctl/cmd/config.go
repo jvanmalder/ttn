@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -13,6 +13,7 @@ var configCmd = &cobra.Command{
 	Short: "Print the used configuration",
 	Long:  `ttnctl config prints the configuration that is used`,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 0, 0)
 		util.PrintConfig(ctx, false)
 	},
 }

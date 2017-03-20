@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package lorawan
@@ -6,6 +6,7 @@ package lorawan
 import (
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/brocaar/lorawan"
+	"github.com/brocaar/lorawan/band"
 )
 
 type payloader interface {
@@ -161,8 +162,28 @@ func JoinAcceptPayloadFromPayload(payload lorawan.Payload) (accept JoinAcceptPay
 func (m *Message) PHYPayload() (phy lorawan.PHYPayload) {
 	phy.MHDR.Major = lorawan.Major(m.Major)
 	phy.MHDR.MType = lorawan.MType(m.MType)
-	phy.MACPayload = m.Payload.(payloader).Payload()
+	if m.Payload != nil {
+		phy.MACPayload = m.Payload.(payloader).Payload()
+	}
 	copy(phy.MIC[:], m.Mic)
+	return
+}
+
+// PHYPayloadBytes converts the Message to a lorawan.PHYPayload, marshals it and returns the bytes
+func (m *Message) PHYPayloadBytes() []byte {
+	phy := m.PHYPayload()
+	bytes, _ := phy.MarshalBinary()
+	return bytes
+}
+
+// MessageFromPHYPayloadBytes converts lorawan.PHYPayload bytes to a Message
+func MessageFromPHYPayloadBytes(payload []byte) (msg Message, err error) {
+	var phy lorawan.PHYPayload
+	err = phy.UnmarshalBinary(payload)
+	if err != nil {
+		return
+	}
+	msg = MessageFromPHYPayload(phy)
 	return
 }
 
@@ -187,4 +208,39 @@ func MessageFromPHYPayload(phy lorawan.PHYPayload) Message {
 		m.Payload = &Message_MacPayload{MacPayload: &payload}
 	}
 	return m
+}
+
+// GetLoRaWANDataRate returns the band.Datarate for the current Metadata
+func (m *Metadata) GetLoRaWANDataRate() (dataRate band.DataRate, err error) {
+	switch m.Modulation {
+	case Modulation_LORA:
+		dataRate.Modulation = band.LoRaModulation
+		dr, err := types.ParseDataRate(m.DataRate)
+		if err != nil {
+			return dataRate, err
+		}
+		dataRate.Bandwidth = int(dr.Bandwidth)
+		dataRate.SpreadFactor = int(dr.SpreadingFactor)
+	case Modulation_FSK:
+		dataRate.Modulation = band.FSKModulation
+		dataRate.BitRate = int(m.BitRate)
+	}
+	return
+}
+
+// SetDataRate sets the dataRate for the current Metadata based from a band.Datarate
+func (c *TxConfiguration) SetDataRate(dataRate band.DataRate) error {
+	switch dataRate.Modulation {
+	case band.LoRaModulation:
+		c.Modulation = Modulation_LORA
+		datr, err := types.ConvertDataRate(dataRate)
+		if err != nil {
+			return err
+		}
+		c.DataRate = datr.String()
+	case band.FSKModulation:
+		c.Modulation = Modulation_FSK
+		c.BitRate = uint32(dataRate.BitRate)
+	}
+	return nil
 }

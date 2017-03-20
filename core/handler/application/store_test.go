@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package application
@@ -56,7 +56,7 @@ func TestApplicationStore(t *testing.T) {
 	a.So(app.Encoder, ShouldEqual, "new encoder")
 
 	// List
-	apps, err := s.List()
+	apps, err := s.List(nil)
 	a.So(err, ShouldBeNil)
 	a.So(apps, ShouldHaveLength, 1)
 

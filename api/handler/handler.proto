@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 syntax = "proto3";
@@ -9,6 +9,7 @@ import "ttn/api/api.proto";
 import "ttn/api/broker/broker.proto";
 import "ttn/api/protocol/protocol.proto";
 import "ttn/api/protocol/lorawan/device.proto";
+import "ttn/api/trace/trace.proto";
 
 package handler;
 
@@ -19,6 +20,8 @@ message DeviceActivationResponse {
   protocol.Message             message              = 2;
   broker.DownlinkOption        downlink_option      = 11;
   protocol.ActivationMetadata  activation_metadata  = 23;
+
+  trace.Trace                  trace                = 31;
 }
 
 // The Handler service provides pure network functionality
@@ -79,6 +82,12 @@ message Device {
   oneof device {
     lorawan.Device lorawan_device = 3;
   }
+
+  float latitude  = 10;
+  float longitude = 11;
+  int32 altitude  = 12;
+
+  string description = 20;
 }
 
 message DeviceList {
@@ -105,6 +114,17 @@ message DryUplinkMessage {
   Application app = 2;
   // The port number that should be passed to the payload function
   uint32 port     = 3;
+}
+
+// SimulatedUplinkMessage is a simulated uplink message
+message SimulatedUplinkMessage {
+  string app_id       = 1;
+  string dev_id       = 2;
+
+  // The binary payload to use
+  bytes  payload      = 3;
+  // The port number
+  uint32 port         = 4;
 }
 
 message LogEntry {
@@ -136,6 +156,10 @@ message DryDownlinkResult {
 }
 
 // ApplicationManager manages application and device registrations on the Handler
+//
+// To protect our quality of service, you can make up to 5000 calls to the
+// ApplicationManager API per hour. Once you go over the rate limit, you will
+// receive an error response.
 service ApplicationManager {
 
   // Applications should first be registered to the Handler with the `RegisterApplication` method
@@ -213,11 +237,14 @@ service ApplicationManager {
     };
   }
 
-  // DryUplink simulates processing an uplink message and returns the result
+  // DryUplink simulates processing a downlink message and returns the result
   rpc DryDownlink(DryDownlinkMessage) returns (DryDownlinkResult);
 
-  // DryUplink simulates processing a downlink message and returns the result
+  // DryUplink simulates processing an uplink message and returns the result
   rpc DryUplink(DryUplinkMessage) returns (DryUplinkResult);
+
+  // SimulateUplink simulates an uplink message
+  rpc SimulateUplink(SimulatedUplinkMessage) returns (google.protobuf.Empty);
 }
 
 // The HandlerManager service provides configuration and monitoring

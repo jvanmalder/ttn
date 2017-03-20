@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
@@ -7,25 +7,27 @@ import (
 	"fmt"
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
+	"github.com/TheThingsNetwork/go-utils/random"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
+	"github.com/TheThingsNetwork/ttn/api/fields"
 	pb "github.com/TheThingsNetwork/ttn/api/handler"
+	"github.com/TheThingsNetwork/ttn/api/trace"
 	"github.com/TheThingsNetwork/ttn/core/handler/device"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
 	"github.com/TheThingsNetwork/ttn/utils/otaa"
-	"github.com/TheThingsNetwork/ttn/utils/random"
-	"github.com/apex/log"
 	"github.com/brocaar/lorawan"
 )
 
-func (h *handler) getActivationMetadata(ctx log.Interface, activation *pb_broker.DeduplicatedDeviceActivationRequest) (types.Metadata, error) {
+func (h *handler) getActivationMetadata(ctx ttnlog.Interface, activation *pb_broker.DeduplicatedDeviceActivationRequest, device *device.Device) (types.Metadata, error) {
 	ttnUp := &pb_broker.DeduplicatedUplinkMessage{
 		ProtocolMetadata: activation.ProtocolMetadata,
 		GatewayMetadata:  activation.GatewayMetadata,
 		ServerTime:       activation.ServerTime,
 	}
 	mqttUp := &types.UplinkMessage{}
-	err := h.ConvertMetadata(ctx, ttnUp, mqttUp)
+	err := h.ConvertMetadata(ctx, ttnUp, mqttUp, device)
 	if err != nil {
 		return types.Metadata{}, err
 	}
@@ -70,20 +72,7 @@ func (h *handler) HandleActivationChallenge(challenge *pb_broker.ActivationChall
 
 func (h *handler) HandleActivation(activation *pb_broker.DeduplicatedDeviceActivationRequest) (res *pb.DeviceActivationResponse, err error) {
 	appID, devID := activation.AppId, activation.DevId
-	var appEUI types.AppEUI
-	if activation.AppEui != nil {
-		appEUI = *activation.AppEui
-	}
-	var devEUI types.DevEUI
-	if activation.DevEui != nil {
-		devEUI = *activation.DevEui
-	}
-	ctx := h.Ctx.WithFields(log.Fields{
-		"DevEUI": devEUI,
-		"AppEUI": appEUI,
-		"AppID":  appID,
-		"DevID":  devID,
-	})
+	ctx := h.Ctx.WithFields(fields.Get(activation))
 	start := time.Now()
 	defer func() {
 		if err != nil {
@@ -91,16 +80,23 @@ func (h *handler) HandleActivation(activation *pb_broker.DeduplicatedDeviceActiv
 				AppID: appID,
 				DevID: devID,
 				Event: types.ActivationErrorEvent,
-				Data:  types.ErrorEventData{Error: err.Error()},
+				Data: types.ActivationEventData{
+					AppEUI:         *activation.AppEui,
+					DevEUI:         *activation.DevEui,
+					ErrorEventData: types.ErrorEventData{Error: err.Error()},
+				},
 			}
 			ctx.WithError(err).Warn("Could not handle activation")
 		} else {
 			ctx.WithField("Duration", time.Now().Sub(start)).Info("Handled activation")
 		}
 	}()
+	h.status.activations.Mark(1)
+
+	activation.Trace = activation.Trace.WithEvent(trace.ReceiveEvent)
 
 	if activation.ResponseTemplate == nil {
-		err = errors.NewErrInternal("No downlink available")
+		err = errors.NewErrInvalidArgument("Activation", "No gateways available for downlink")
 		return nil, err
 	}
 
@@ -134,6 +130,7 @@ func (h *handler) HandleActivation(activation *pb_broker.DeduplicatedDeviceActiv
 	}
 
 	// Validate MIC
+	activation.Trace = activation.Trace.WithEvent(trace.CheckMICEvent)
 	if ok, err = reqPHY.ValidateMIC(lorawan.AES128Key(dev.AppKey)); err != nil || !ok {
 		err = errors.NewErrNotFound("MIC does not match device")
 		return nil, err
@@ -153,6 +150,7 @@ func (h *handler) HandleActivation(activation *pb_broker.DeduplicatedDeviceActiv
 	}
 
 	ctx.Debug("Accepting Join Request")
+	activation.Trace = activation.Trace.WithEvent(trace.AcceptEvent)
 
 	// Prepare Device Activation Response
 	var resPHY lorawan.PHYPayload
@@ -171,7 +169,7 @@ func (h *handler) HandleActivation(activation *pb_broker.DeduplicatedDeviceActiv
 	resPHY.MACPayload = joinAccept
 
 	// Publish Activation
-	mqttMetadata, _ := h.getActivationMetadata(ctx, activation)
+	mqttMetadata, _ := h.getActivationMetadata(ctx, activation, dev)
 	h.mqttEvent <- &types.DeviceEvent{
 		AppID: appID,
 		DevID: devID,
@@ -190,7 +188,7 @@ func (h *handler) HandleActivation(activation *pb_broker.DeduplicatedDeviceActiv
 		// NOTE: As DevNonces are only 2 bytes, we will start rejecting those before we run out of AppNonces.
 		// It might just take some time to get one we didn't use yet...
 		alreadyUsed = false
-		copy(appNonce[:], random.Bytes(3))
+		random.FillBytes(appNonce[:])
 		for _, usedNonce := range dev.UsedAppNonces {
 			if usedNonce == appNonce {
 				alreadyUsed = true
@@ -241,6 +239,7 @@ func (h *handler) HandleActivation(activation *pb_broker.DeduplicatedDeviceActiv
 		Payload:            resBytes,
 		DownlinkOption:     activation.ResponseTemplate.DownlinkOption,
 		ActivationMetadata: metadata,
+		Trace:              activation.Trace,
 	}
 
 	return res, nil

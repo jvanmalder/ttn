@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
@@ -7,8 +7,9 @@ import (
 	"time"
 
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
+	"github.com/TheThingsNetwork/ttn/api/fields"
+	"github.com/TheThingsNetwork/ttn/api/trace"
 	"github.com/TheThingsNetwork/ttn/core/types"
-	"github.com/apex/log"
 )
 
 // ResponseDeadline indicates how long
@@ -16,17 +17,13 @@ var ResponseDeadline = 100 * time.Millisecond
 
 func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err error) {
 	appID, devID := uplink.AppId, uplink.DevId
-	// Find device for location
-	dev, err := h.devices.Get(uplink.AppId, uplink.DevId)
-	if err != nil {
-		return err
-	}
-	location := dev.Location
-	ctx := h.Ctx.WithFields(log.Fields{
-		"AppID": appID,
-		"Location": location,
-		"DevID": devID,
-	})
+//	location := dev.Location
+//	ctx := h.Ctx.WithFields(log.Fields{
+//		"AppID": appID,
+//		"Location": location,
+//		"DevID": devID,
+//	})
+	ctx := h.Ctx.WithFields(fields.Get(uplink))
 	start := time.Now()
 	defer func() {
 		if err != nil {
@@ -42,6 +39,16 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 			ctx.WithField("Duration", time.Now().Sub(start)).Info("Handled uplink")
 		}
 	}()
+	h.status.uplink.Mark(1)
+
+	uplink.Trace = uplink.Trace.WithEvent(trace.ReceiveEvent)
+
+	dev, err := h.devices.Get(appID, devID)
+	if err != nil {
+		return err
+	}
+	location := dev.Location
+	dev.StartUpdate()
 
 	// Build AppUplink
 	appUplink := &types.UplinkMessage{
@@ -58,10 +65,11 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 	}
 
 	ctx.WithField("NumProcessors", len(processors)).Debug("Running Uplink Processors")
+	uplink.Trace = uplink.Trace.WithEvent("process uplink")
 
 	// Run Uplink Processors
 	for _, processor := range processors {
-		err = processor(ctx, uplink, appUplink)
+		err = processor(ctx, uplink, appUplink, dev)
 		if err == ErrNotNeeded {
 			err = nil
 			return nil
@@ -70,41 +78,73 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 		}
 	}
 
+	err = h.devices.Set(dev)
+	if err != nil {
+		return err
+	}
+	dev.StartUpdate()
+
 	// Publish Uplink
 	h.mqttUp <- appUplink
 	if h.amqpEnabled {
 		h.amqpUp <- appUplink
 	}
 
-	<-time.After(ResponseDeadline)
+	noDownlinkErrEvent := &types.DeviceEvent{
+		AppID: appID,
+		DevID: devID,
+		Event: types.DownlinkErrorEvent,
+		Data:  types.ErrorEventData{Error: "No gateways available for downlink"},
+	}
 
-	// Find scheduled downlink
-	var appDownlink types.DownlinkMessage
-	if dev.NextDownlink != nil {
-		appDownlink = *dev.NextDownlink
+	if dev.CurrentDownlink == nil {
+		<-time.After(ResponseDeadline)
+
+		queue, err := h.devices.DownlinkQueue(appID, devID)
+		if err != nil {
+			return err
+		}
+
+		if len, _ := queue.Length(); len > 0 {
+			if uplink.ResponseTemplate != nil {
+				next, err := queue.Next()
+				if err != nil {
+					return err
+				}
+				dev.CurrentDownlink = next
+			} else {
+				h.mqttEvent <- noDownlinkErrEvent
+				return nil
+			}
+		}
 	}
 
 	if uplink.ResponseTemplate == nil {
-		ctx.Debug("No Downlink Available")
+		if dev.CurrentDownlink != nil {
+			h.mqttEvent <- noDownlinkErrEvent
+		}
 		return nil
 	}
 
-	// Prepare Downlink
-	downlink := uplink.ResponseTemplate
-	appDownlink.AppID = uplink.AppId
-	appDownlink.Location = location
-	appDownlink.DevID = uplink.DevId
-
-	// Handle Downlink
-	err = h.HandleDownlink(&appDownlink, downlink)
+	// Save changes (if any)
+	err = h.devices.Set(dev)
 	if err != nil {
 		return err
 	}
 
-	// Clear Downlink
-	dev.StartUpdate()
-	dev.NextDownlink = nil
-	err = h.devices.Set(dev)
+	// Prepare Downlink
+	var appDownlink types.DownlinkMessage
+	if dev.CurrentDownlink != nil {
+		appDownlink = *dev.CurrentDownlink
+	}
+	appDownlink.AppID = uplink.AppId
+	appDownlink.Location = location
+	appDownlink.DevID = uplink.DevId
+	downlink := uplink.ResponseTemplate
+	downlink.Trace = uplink.Trace.WithEvent("prepare downlink")
+
+	// Handle Downlink
+	err = h.HandleDownlink(&appDownlink, downlink)
 	if err != nil {
 		return err
 	}

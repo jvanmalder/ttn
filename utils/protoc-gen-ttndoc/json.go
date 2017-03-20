@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package main
@@ -16,9 +16,9 @@ var exampleValues = map[string]interface{}{
 	".discovery.Announcement.net_address":     "eu.thethings.network:1904",
 	".discovery.Announcement.public_key":      "-----BEGIN PUBLIC KEY-----\n...",
 	".discovery.Announcement.public":          true,
-	".discovery.Announcement.service_version": "2.0.0-dev-abcdef...",
-	".discovery.Metadata.key":                 "APP_ID",
-	".discovery.Metadata.value":               "some-app-id",
+	".discovery.Announcement.service_version": "2.0.0-abcdef...",
+	".discovery.Metadata.dev_addr_prefix":     "AAAAAAA=",
+	".discovery.Metadata.app_id":              "some-app-id",
 	".handler.*.app_id":                       "some-app-id",
 	".handler.*.dev_id":                       "some-dev-id",
 	".handler.*.fields":                       `{"light":100}`,
@@ -31,6 +31,9 @@ var exampleValues = map[string]interface{}{
 	".handler.DryDownlinkMessage.payload":     "",
 	".handler.LogEntry.fields":                `["TTN",123]`,
 	".handler.LogEntry.function":              "decoder",
+	".handler.Device.description":             "Some description of the device",
+	".handler.Device.latitude":                52.375,
+	".handler.Device.longitude":               4.887,
 	".lorawan.Device.activation_constraints":  "local",
 	".lorawan.Device.app_eui":                 "0102030405060708",
 	".lorawan.Device.app_id":                  "some-app-id",

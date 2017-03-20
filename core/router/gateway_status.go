@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package router
@@ -19,6 +19,7 @@ func (r *router) HandleGatewayStatus(gatewayID string, status *pb_gateway.Status
 			ctx.WithField("Duration", time.Now().Sub(start)).Info("Handled gateway status")
 		}
 	}()
-
+	r.status.gatewayStatus.Mark(1)
+	status.Router = r.Identity.Id
 	return r.getGateway(gatewayID).HandleStatus(status)
 }

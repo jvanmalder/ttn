@@ -1,11 +1,10 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package broker
 
 import (
 	"errors"
-	"fmt"
 
 	pb_protocol "github.com/TheThingsNetwork/ttn/api/protocol"
 	pb_lorawan "github.com/TheThingsNetwork/ttn/api/protocol/lorawan"
@@ -41,6 +40,13 @@ func (m *DownlinkMessage) UnmarshalPayload() error {
 			return err
 		}
 		m.Message = msg
+		if lorawan := m.GetDownlinkOption().GetProtocolConfig().GetLorawan(); lorawan != nil {
+			if lorawan.FCnt != 0 {
+				if mac := m.Message.GetLorawan().GetMacPayload(); mac != nil {
+					mac.FHDR.FCnt = lorawan.FCnt
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -65,6 +71,13 @@ func (m *DeduplicatedUplinkMessage) UnmarshalPayload() error {
 			return err
 		}
 		m.Message = msg
+		if lorawan := m.GetProtocolMetadata().GetLorawan(); lorawan != nil {
+			if lorawan.FCnt != 0 {
+				if mac := m.Message.GetLorawan().GetMacPayload(); mac != nil {
+					mac.FHDR.FCnt = lorawan.FCnt
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -126,7 +139,6 @@ func payloadFromMsg(msg *pb_protocol.Message) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(bin)
 	return bin, nil
 }
 

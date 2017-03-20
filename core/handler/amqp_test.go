@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package handler
@@ -57,8 +57,9 @@ func TestHandleAMQP(t *testing.T) {
 	})
 	a.So(err, ShouldBeNil)
 	<-time.After(50 * time.Millisecond)
-	dev, _ := h.devices.Get(appID, devID)
-	a.So(dev.NextDownlink, ShouldNotBeNil)
+	q, _ := h.devices.DownlinkQueue(appID, devID)
+	downlink, _ := q.Next()
+	a.So(downlink, ShouldNotBeNil)
 
 	wg.Add(1)
 	s := c.NewSubscriber("amq.topic", "", false, true)

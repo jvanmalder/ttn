@@ -1,11 +1,4 @@
-<!--
-Hello there! Thanks for reporting this issue!
-
-To help us handle this issue quicker, please fill in the 
-placeholders {...} and remove text that is not applicable
--->
-
-This is a **{bug report/feature request/question/...}** for **{the Backend/ttnctl/the Console/the NOC/an integration}** (**{v1-staging/v2-preview}**).
+This is a **{bug report/feature request/question/...}** for **{the Backend/ttnctl/the Console/the NOC/an integration}**.
 
 - Explain what you want to do
 - Explain what steps you took

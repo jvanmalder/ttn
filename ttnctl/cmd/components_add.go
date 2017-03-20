@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -16,10 +16,7 @@ var componentsAddCmd = &cobra.Command{
   INFO Added network component                  id=test type=handler
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) != 2 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
+		assertArgsLength(cmd, args, 2, 2)
 
 		account := util.GetAccount(ctx)
 

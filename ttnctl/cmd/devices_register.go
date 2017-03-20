@@ -1,21 +1,22 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
 
 import (
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
+	"github.com/TheThingsNetwork/go-utils/pseudorandom"
+	"github.com/TheThingsNetwork/go-utils/random"
 	"github.com/TheThingsNetwork/ttn/api"
 	"github.com/TheThingsNetwork/ttn/api/handler"
 	"github.com/TheThingsNetwork/ttn/api/protocol/lorawan"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/ttnctl/util"
-	"github.com/TheThingsNetwork/ttn/utils/random"
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 )
 
 var devicesRegisterCmd = &cobra.Command{
-	Use:   "register [Device ID] [DevEUI] [AppKey]",
+	Use:   "register [Device ID] [DevEUI] [AppKey] [Lat,Long]",
 	Short: "Register a new device",
 	Long:  `ttnctl devices register can be used to register a new device.`,
 	Example: `$ ttnctl devices register test
@@ -27,12 +28,9 @@ var devicesRegisterCmd = &cobra.Command{
   INFO Registered device                        AppEUI=70B3D57EF0000024 AppID=test AppKey=EBD2E2810A4307263FE5EF78E2EF589D DevEUI=0001D544B2936FCE DevID=test
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 1, 4)
 
 		var err error
-
-		if len(args) == 0 {
-			ctx.Fatalf("Device ID is required")
-		}
 
 		devID := args[0]
 		if !api.ValidID(devID) {
@@ -50,7 +48,7 @@ var devicesRegisterCmd = &cobra.Command{
 			}
 		} else {
 			ctx.Info("Generating random DevEUI...")
-			copy(devEUI[1:], random.Bytes(7))
+			pseudorandom.FillBytes(devEUI[1:])
 		}
 
 		var appKey types.AppKey
@@ -61,13 +59,10 @@ var devicesRegisterCmd = &cobra.Command{
 			}
 		} else {
 			ctx.Info("Generating random AppKey...")
-			copy(appKey[:], random.Bytes(16))
+			random.FillBytes(appKey[:])
 		}
 
-		conn, manager := util.GetHandlerManager(ctx, appID)
-		defer conn.Close()
-
-		err = manager.SetDevice(&handler.Device{
+		device := &handler.Device{
 			AppId: appID,
 			DevId: devID,
 			Device: &handler.Device_LorawanDevice{LorawanDevice: &lorawan.Device{
@@ -78,12 +73,26 @@ var devicesRegisterCmd = &cobra.Command{
 				AppKey:        &appKey,
 				Uses32BitFCnt: true,
 			}},
-		})
+		}
+
+		if len(args) > 3 {
+			location, err := util.ParseLocation(args[3])
+			if err != nil {
+				ctx.WithError(err).Fatal("Invalid location")
+			}
+			device.Latitude = float32(location.Latitude)
+			device.Longitude = float32(location.Longitude)
+		}
+
+		conn, manager := util.GetHandlerManager(ctx, appID)
+		defer conn.Close()
+
+		err = manager.SetDevice(device)
 		if err != nil {
 			ctx.WithError(err).Fatal("Could not register Device")
 		}
 
-		ctx.WithFields(log.Fields{
+		ctx.WithFields(ttnlog.Fields{
 			"AppID":  appID,
 			"DevID":  devID,
 			"AppEUI": appEUI,

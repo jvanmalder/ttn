@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package broker
@@ -89,7 +89,7 @@ func TestHandleUplink(t *testing.T) {
 			},
 		},
 	}
-	b.handlers["handlerID"] = make(chan *pb.DeduplicatedUplinkMessage, 10)
+	b.handlers["handlerID"] = &handler{uplink: make(chan *pb.DeduplicatedUplinkMessage, 10)}
 
 	// Device doesn't match
 	b.uplinkDeduplicator = NewDeduplicator(10 * time.Millisecond)
@@ -112,13 +112,13 @@ func TestHandleUplink(t *testing.T) {
 		GatewayMetadata:  &gateway.RxMetadata{Snr: 1.2, GatewayId: gtwID},
 		ProtocolMetadata: &protocol.RxMetadata{Protocol: &protocol.RxMetadata_Lorawan{Lorawan: &pb_lorawan.Metadata{}}},
 	})
-	a.So(err, ShouldHaveSameTypeAs, &errors.ErrNotFound{})
+	a.So(err, ShouldHaveSameTypeAs, &errors.ErrInvalidArgument{})
 
 	// Disable FCnt Check
 	b.uplinkDeduplicator = NewDeduplicator(10 * time.Millisecond)
 	nsResponse.Results[0].DisableFCntCheck = true
 	b.ns.EXPECT().GetDevices(gomock.Any(), gomock.Any()).Return(nsResponse, nil)
-	b.ns.EXPECT().Uplink(gomock.Any(), gomock.Any())
+	b.ns.EXPECT().Uplink(gomock.Any(), gomock.Any()).Return(&pb.DeduplicatedUplinkMessage{}, nil)
 	b.discovery.EXPECT().GetAllHandlersForAppID("appid-1").Return([]*pb_discovery.Announcement{
 		&pb_discovery.Announcement{
 			Id: "handlerID",
@@ -136,7 +136,7 @@ func TestHandleUplink(t *testing.T) {
 	nsResponse.Results[0].FCntUp = 0
 	nsResponse.Results[0].DisableFCntCheck = false
 	b.ns.EXPECT().GetDevices(gomock.Any(), gomock.Any()).Return(nsResponse, nil)
-	b.ns.EXPECT().Uplink(gomock.Any(), gomock.Any())
+	b.ns.EXPECT().Uplink(gomock.Any(), gomock.Any()).Return(&pb.DeduplicatedUplinkMessage{}, nil)
 	b.discovery.EXPECT().GetAllHandlersForAppID("appid-1").Return([]*pb_discovery.Announcement{
 		&pb_discovery.Announcement{
 			Id: "handlerID",

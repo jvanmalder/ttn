@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -6,8 +6,8 @@ package cmd
 import (
 	"fmt"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/ttnctl/util"
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +23,7 @@ Are you sure you want to unregister application test?
   INFO Unregistered application                 AppID=test
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 0, 0)
 
 		appID := util.GetAppID(ctx)
 
@@ -39,7 +40,7 @@ Are you sure you want to unregister application test?
 			ctx.WithError(err).Fatal("Could not unregister application")
 		}
 
-		ctx.WithFields(log.Fields{
+		ctx.WithFields(ttnlog.Fields{
 			"AppID": appID,
 		}).Infof("Unregistered application")
 	},

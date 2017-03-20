@@ -1,20 +1,20 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package util
 
 import (
 	"github.com/TheThingsNetwork/go-account-lib/scope"
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/api/discovery"
 	"github.com/TheThingsNetwork/ttn/api/handler"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
-	"github.com/apex/log"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
 
 // GetHandlerManager gets a new HandlerManager for ttnctl
-func GetHandlerManager(ctx log.Interface, appID string) (*grpc.ClientConn, *handler.ManagerClient) {
+func GetHandlerManager(ctx ttnlog.Interface, appID string) (*grpc.ClientConn, *handler.ManagerClient) {
 	ctx.WithField("Handler", viper.GetString("handler-id")).Info("Discovering Handler...")
 	dscConn, client := GetDiscovery(ctx)
 	defer dscConn.Close()

@@ -1,3 +1,6 @@
+// Copyright © 2017 The Things Network
+// Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+
 package api
 
 import (
@@ -75,14 +78,14 @@ func TestValidID(t *testing.T) {
 	}
 }
 
-func TestNotEmptyAndValidId(t *testing.T) {
-	err := NotEmptyAndValidId("", "subject")
+func TestNotEmptyAndValidID(t *testing.T) {
+	err := NotEmptyAndValidID("", "subject")
 	if err == nil || err.Error() != "subject not valid: can not be empty" {
 		t.Error("Expected validation error: 'subject not valid: can not be empty' but found", err)
 	}
 
-	err = NotEmptyAndValidId("a", "subject")
-	if err == nil || err.Error() != "subject not valid: has wrong format a" {
+	err = NotEmptyAndValidID("a", "subject")
+	if err == nil || err.Error() != "subject not valid: has wrong format. IDs can contain lowercase letters, numbers, dashes and underscores and should have a maximum length of 36" {
 		t.Error("Expected validation error: 'subject not valid: has wrong format a' but found", err)
 	}
 }

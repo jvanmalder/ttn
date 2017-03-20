@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -11,11 +11,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb "github.com/TheThingsNetwork/ttn/api/handler"
 	"github.com/TheThingsNetwork/ttn/core/component"
 	"github.com/TheThingsNetwork/ttn/core/handler"
 	"github.com/TheThingsNetwork/ttn/core/proxy"
-	"github.com/apex/log"
+	"github.com/TheThingsNetwork/ttn/core/proxy/jsonpb"
+	"github.com/TheThingsNetwork/ttn/utils/parse"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -30,7 +32,7 @@ var handlerCmd = &cobra.Command{
 	Short: "The Things Network handler",
 	Long:  ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		ctx.WithFields(log.Fields{
+		ctx.WithFields(ttnlog.Fields{
 			"Server":        fmt.Sprintf("%s:%d", viper.GetString("handler.server-address"), viper.GetInt("handler.server-port")),
 			"HTTP Proxy":    fmt.Sprintf("%s:%d", viper.GetString("handler.http-address"), viper.GetInt("handler.http-port")),
 			"Announce":      fmt.Sprintf("%s:%d", viper.GetString("handler.server-address-announce"), viper.GetInt("handler.server-port")),
@@ -50,10 +52,12 @@ var handlerCmd = &cobra.Command{
 			DB:       viper.GetInt("handler.redis-db"),
 		})
 
-		connectRedis(client)
+		if err := connectRedis(client); err != nil {
+			ctx.WithError(err).Fatal("Could not initialize database connection")
+		}
 
 		// Component
-		component, err := component.New(ctx, "handler", fmt.Sprintf("%s:%d", viper.GetString("handler.server-address-announce"), viper.GetInt("handler.server-port")))
+		component, err := component.New(ttnlog.Get(), "handler", fmt.Sprintf("%s:%d", viper.GetString("handler.server-address-announce"), viper.GetInt("handler.server-port")))
 		if err != nil {
 			ctx.WithError(err).Fatal("Could not initialize component")
 		}
@@ -74,6 +78,16 @@ var handlerCmd = &cobra.Command{
 				viper.GetString("handler.mqtt-password"),
 				viper.GetString("handler.mqtt-address"),
 			)
+
+			mqttPort, err := parse.Port(viper.GetString("handler.mqtt-address"))
+			if err != nil {
+				ctx.WithError(err).Error("Could not announce the handler")
+			}
+			if announceAddr := viper.GetString("handler.mqtt-address-announce"); announceAddr != "" {
+				component.Identity.MqttAddress = fmt.Sprintf("%s:%d", announceAddr, mqttPort)
+			} else {
+				component.Identity.MqttAddress = fmt.Sprintf("%s:%d", viper.GetString("handler.server-address-announce"), mqttPort)
+			}
 		} else {
 			ctx.Warn("MQTT is not enabled in your configuration")
 		}
@@ -82,7 +96,18 @@ var handlerCmd = &cobra.Command{
 				viper.GetString("handler.amqp-username"),
 				viper.GetString("handler.amqp-password"),
 				viper.GetString("handler.amqp-address"),
-				viper.GetString("handler.amqp-exchange"))
+				viper.GetString("handler.amqp-exchange"),
+			)
+
+			amqpPort, err := parse.Port(viper.GetString("handler.amqp-address"))
+			if err != nil {
+				ctx.WithError(err).Error("Could not announce the handler")
+			}
+			if announceAddr := viper.GetString("handler.amqp-address-announce"); announceAddr != "" {
+				component.Identity.AmqpAddress = fmt.Sprintf("%s:%d", announceAddr, amqpPort)
+			} else {
+				component.Identity.AmqpAddress = fmt.Sprintf("%s:%d", viper.GetString("handler.server-address-announce"), amqpPort)
+			}
 		} else {
 			ctx.Warn("AMQP is not enabled in your configuration")
 		}
@@ -111,12 +136,15 @@ var handlerCmd = &cobra.Command{
 			if err != nil {
 				ctx.WithError(err).Fatal("Could not start client for gRPC proxy")
 			}
-			mux := runtime.NewServeMux()
+			mux := runtime.NewServeMux(runtime.WithMarshalerOption("*", &jsonpb.GoGoJSONPb{
+				OrigName: true,
+			}))
 			netCtx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			pb.RegisterApplicationManagerHandler(netCtx, mux, proxyConn)
 
 			prxy := proxy.WithToken(mux)
+			prxy = proxy.WithPagination(prxy)
 			prxy = proxy.WithLogger(prxy, ctx)
 
 			go func() {
@@ -149,24 +177,23 @@ func init() {
 	viper.BindPFlag("handler.broker-id", handlerCmd.Flags().Lookup("broker-id"))
 
 	handlerCmd.Flags().String("mqtt-address", "", "MQTT host and port. Leave empty to disable MQTT")
-	viper.BindPFlag("handler.mqtt-address", handlerCmd.Flags().Lookup("mqtt-address"))
-
+	handlerCmd.Flags().String("mqtt-address-announce", "", "MQTT address to announce (takes value of server-address-announce if empty while enabled)")
 	handlerCmd.Flags().String("mqtt-username", "", "MQTT username")
-	viper.BindPFlag("handler.mqtt-username", handlerCmd.Flags().Lookup("mqtt-username"))
-
 	handlerCmd.Flags().String("mqtt-password", "", "MQTT password")
+	viper.BindPFlag("handler.mqtt-address", handlerCmd.Flags().Lookup("mqtt-address"))
+	viper.BindPFlag("handler.mqtt-address-announce", handlerCmd.Flags().Lookup("mqtt-address-announce"))
+	viper.BindPFlag("handler.mqtt-username", handlerCmd.Flags().Lookup("mqtt-username"))
 	viper.BindPFlag("handler.mqtt-password", handlerCmd.Flags().Lookup("mqtt-password"))
 
 	handlerCmd.Flags().String("amqp-address", "", "AMQP host and port. Leave empty to disable AMQP")
-	viper.BindPFlag("handler.amqp-address", handlerCmd.Flags().Lookup("amqp-address"))
-
+	handlerCmd.Flags().String("amqp-address-announce", "", "AMQP address to announce (takes value of server-address-announce if empty while enabled)")
 	handlerCmd.Flags().String("amqp-username", "guest", "AMQP username")
-	viper.BindPFlag("handler.amqp-username", handlerCmd.Flags().Lookup("amqp-username"))
-
 	handlerCmd.Flags().String("amqp-password", "guest", "AMQP password")
-	viper.BindPFlag("handler.amqp-password", handlerCmd.Flags().Lookup("amqp-password"))
-
 	handlerCmd.Flags().String("amqp-exchange", "ttn.handler", "AMQP exchange")
+	viper.BindPFlag("handler.amqp-address", handlerCmd.Flags().Lookup("amqp-address"))
+	viper.BindPFlag("handler.amqp-address-announce", handlerCmd.Flags().Lookup("amqp-address-announce"))
+	viper.BindPFlag("handler.amqp-username", handlerCmd.Flags().Lookup("amqp-username"))
+	viper.BindPFlag("handler.amqp-password", handlerCmd.Flags().Lookup("amqp-password"))
 	viper.BindPFlag("handler.amqp-exchange", handlerCmd.Flags().Lookup("amqp-exchange"))
 
 	handlerCmd.Flags().String("server-address", "0.0.0.0", "The IP address to listen for communication")

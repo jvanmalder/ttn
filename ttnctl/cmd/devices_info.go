@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -40,11 +40,7 @@ var devicesInfoCmd = &cobra.Command{
     Options:
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-
-		if len(args) == 0 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
+		assertArgsLength(cmd, args, 1, 1)
 
 		devID := args[0]
 		if !api.ValidID(devID) {
@@ -69,6 +65,15 @@ var devicesInfoCmd = &cobra.Command{
 
 		fmt.Printf("  Application ID: %s\n", dev.AppId)
 		fmt.Printf("       Device ID: %s\n", dev.DevId)
+
+		if dev.Description != "" {
+			fmt.Printf("     Description: %s\n", dev.Description)
+		}
+
+		if dev.Latitude != 0 || dev.Longitude != 0 {
+			fmt.Printf("        Location: %f,%f\n", dev.Latitude, dev.Longitude)
+		}
+
 		if lorawan := dev.GetLorawanDevice(); lorawan != nil {
 			lastSeen := "never"
 			if lorawan.LastSeen > 0 {

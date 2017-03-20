@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package device
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/TheThingsNetwork/ttn/core/networkserver/device/migrate"
 	"github.com/TheThingsNetwork/ttn/core/storage"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
@@ -15,18 +16,19 @@ import (
 
 // Store interface for Devices
 type Store interface {
-	List() ([]*Device, error)
+	List(opts *storage.ListOptions) ([]*Device, error)
 	ListForAddress(devAddr types.DevAddr) ([]*Device, error)
 	Get(appEUI types.AppEUI, devEUI types.DevEUI) (*Device, error)
 	Set(new *Device, properties ...string) (err error)
-	Activate(appEUI types.AppEUI, devEUI types.DevEUI, devAddr types.DevAddr, nwkSKey types.NwkSKey) error
 	Delete(appEUI types.AppEUI, devEUI types.DevEUI) error
+	Frames(appEUI types.AppEUI, devEUI types.DevEUI) (FrameHistory, error)
 }
 
 const defaultRedisPrefix = "ns"
 
 const redisDevicePrefix = "device"
 const redisDevAddrPrefix = "dev_addr"
+const redisFramesPrefix = "frames"
 
 // NewRedisDeviceStore creates a new Redis-based status store
 func NewRedisDeviceStore(client *redis.Client, prefix string) Store {
@@ -35,9 +37,15 @@ func NewRedisDeviceStore(client *redis.Client, prefix string) Store {
 	}
 	store := storage.NewRedisMapStore(client, prefix+":"+redisDevicePrefix)
 	store.SetBase(Device{}, "")
-
+	for v, f := range migrate.DeviceMigrations(prefix) {
+		store.AddMigration(v, f)
+	}
+	frameStore := storage.NewRedisQueueStore(client, prefix+":"+redisFramesPrefix)
 	return &RedisDeviceStore{
+		client:       client,
+		prefix:       prefix,
 		store:        store,
+		frameStore:   frameStore,
 		devAddrIndex: storage.NewRedisSetStore(client, prefix+":"+redisDevAddrPrefix),
 	}
 }
@@ -46,20 +54,23 @@ func NewRedisDeviceStore(client *redis.Client, prefix string) Store {
 // - Devices are stored as a Hash
 // - DevAddr mappings are indexed in a Set
 type RedisDeviceStore struct {
+	client       *redis.Client
+	prefix       string
 	store        *storage.RedisMapStore
+	frameStore   *storage.RedisQueueStore
 	devAddrIndex *storage.RedisSetStore
 }
 
 // List all Devices
-func (s *RedisDeviceStore) List() ([]*Device, error) {
-	devicesI, err := s.store.List("", nil)
+func (s *RedisDeviceStore) List(opts *storage.ListOptions) ([]*Device, error) {
+	devicesI, err := s.store.List("", opts)
 	if err != nil {
 		return nil, err
 	}
-	devices := make([]*Device, 0, len(devicesI))
-	for _, deviceI := range devicesI {
+	devices := make([]*Device, len(devicesI))
+	for i, deviceI := range devicesI {
 		if device, ok := deviceI.(Device); ok {
-			devices = append(devices, &device)
+			devices[i] = &device
 		}
 	}
 	return devices, nil
@@ -78,10 +89,10 @@ func (s *RedisDeviceStore) ListForAddress(devAddr types.DevAddr) ([]*Device, err
 	if err != nil {
 		return nil, err
 	}
-	devices := make([]*Device, 0, len(devicesI))
-	for _, deviceI := range devicesI {
+	devices := make([]*Device, len(devicesI))
+	for i, deviceI := range devicesI {
 		if device, ok := deviceI.(Device); ok {
-			devices = append(devices, &device)
+			devices[i] = &device
 		}
 	}
 	return devices, nil
@@ -115,14 +126,11 @@ func (s *RedisDeviceStore) Set(new *Device, properties ...string) (err error) {
 
 	now := time.Now()
 	new.UpdatedAt = now
-
 	key := fmt.Sprintf("%s:%s", new.AppEUI, new.DevEUI)
-	if new.old != nil {
-		err = s.store.Update(key, *new, properties...)
-	} else {
+	if new.old == nil {
 		new.CreatedAt = now
-		err = s.store.Create(key, *new, properties...)
 	}
+	err = s.store.Set(key, *new, properties...)
 	if err != nil {
 		return
 	}
@@ -134,25 +142,6 @@ func (s *RedisDeviceStore) Set(new *Device, properties ...string) (err error) {
 	}
 
 	return nil
-}
-
-// Activate a Device
-func (s *RedisDeviceStore) Activate(appEUI types.AppEUI, devEUI types.DevEUI, devAddr types.DevAddr, nwkSKey types.NwkSKey) error {
-	dev, err := s.Get(appEUI, devEUI)
-	if err != nil {
-		return err
-	}
-
-	dev.StartUpdate()
-
-	dev.LastSeen = time.Now()
-	dev.UpdatedAt = time.Now()
-	dev.DevAddr = devAddr
-	dev.NwkSKey = nwkSKey
-	dev.FCntUp = 0
-	dev.FCntDown = 0
-
-	return s.Set(dev)
 }
 
 // Delete a Device
@@ -176,4 +165,13 @@ func (s *RedisDeviceStore) Delete(appEUI types.AppEUI, devEUI types.DevEUI) erro
 	}
 
 	return s.store.Delete(key)
+}
+
+// Frames history for a specific Device
+func (s *RedisDeviceStore) Frames(appEUI types.AppEUI, devEUI types.DevEUI) (FrameHistory, error) {
+	return &RedisFrameHistory{
+		appEUI: appEUI,
+		devEUI: devEUI,
+		store:  s.frameStore,
+	}, nil
 }

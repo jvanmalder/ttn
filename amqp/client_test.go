@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package amqp
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/TheThingsNetwork/ttn/utils/testing"
+	"github.com/TheThingsNetwork/ttn/core/types"
 	. "github.com/smartystreets/assertions"
 	AMQP "github.com/streadway/amqp"
 )
@@ -24,13 +24,13 @@ func init() {
 
 func TestNewClient(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "TestNewClient"), "guest", "guest", host)
+	c := NewClient(getLogger(t, "TestNewClient"), "guest", "guest", host)
 	a.So(c, ShouldNotBeNil)
 }
 
 func TestConnect(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "TestConnect"), "guest", "guest", host)
+	c := NewClient(getLogger(t, "TestConnect"), "guest", "guest", host)
 	err := c.Connect()
 	defer c.Disconnect()
 	a.So(err, ShouldBeNil)
@@ -45,7 +45,7 @@ func TestConnectInvalidAddress(t *testing.T) {
 	a := New(t)
 	ConnectRetries = 2
 	ConnectRetryDelay = 50 * time.Millisecond
-	c := NewClient(GetLogger(t, "TestConnectInvalidAddress"), "guest", "guest", "localhost:56720")
+	c := NewClient(getLogger(t, "TestConnectInvalidAddress"), "guest", "guest", "localhost:56720")
 	err := c.Connect()
 	defer c.Disconnect()
 	a.So(err, ShouldNotBeNil)
@@ -53,7 +53,7 @@ func TestConnectInvalidAddress(t *testing.T) {
 
 func TestIsConnected(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "TestIsConnected"), "guest", "guest", host)
+	c := NewClient(getLogger(t, "TestIsConnected"), "guest", "guest", host)
 
 	a.So(c.IsConnected(), ShouldBeFalse)
 
@@ -65,7 +65,7 @@ func TestIsConnected(t *testing.T) {
 
 func TestDisconnect(t *testing.T) {
 	a := New(t)
-	c := NewClient(GetLogger(t, "TestDisconnect"), "guest", "guest", host)
+	c := NewClient(getLogger(t, "TestDisconnect"), "guest", "guest", host)
 
 	// Disconnecting when not connected should not change anything
 	c.Disconnect()
@@ -80,33 +80,50 @@ func TestDisconnect(t *testing.T) {
 
 func TestReopenChannelClient(t *testing.T) {
 	a := New(t)
-	ctx := GetLogger(t, "TestReopenChannelClient")
+	ctx := getLogger(t, "TestReopenChannelClient")
 	c := NewClient(ctx, "guest", "guest", host).(*DefaultClient)
 	closed, err := c.connect(false)
 	a.So(err, ShouldBeNil)
 	defer c.Disconnect()
 
-	p := &DefaultChannelClient{
-		ctx:    ctx,
-		client: c,
-	}
-	err = p.Open()
+	publisher := c.NewPublisher("amq.topic")
+	err = publisher.Open()
 	a.So(err, ShouldBeNil)
-	defer p.Close()
+	defer publisher.Close()
 
-	test := func() error {
+	subscriber := c.NewSubscriber("amq.topic", "", false, false)
+	err = subscriber.Open()
+	a.So(err, ShouldBeNil)
+	defer subscriber.Close()
+
+	downs := make(chan types.DownlinkMessage, 1)
+	err = subscriber.SubscribeDownlink(func(_ Subscriber, appID string, _ string, msg types.DownlinkMessage) {
+		a.So(appID, ShouldEqual, "app")
+		ctx.Debugf("Got downlink message")
+		downs <- msg
+	})
+	a.So(err, ShouldBeNil)
+
+	test := func() {
 		ctx.Debug("Testing publish")
-		return p.channel.Publish("", "test", false, false, AMQP.Publishing{
-			Body: []byte("test"),
+		err := publisher.PublishDownlink(types.DownlinkMessage{
+			AppID: "app",
 		})
+		a.So(err, ShouldBeNil)
+		select {
+		case <-downs:
+		case <-time.After(100 * time.Millisecond):
+			panic("Published message didn't come in in time")
+		}
+		return
 	}
 
 	// First attempt should be OK
-	err = test()
-	a.So(err, ShouldBeNil)
+	test()
 
 	// Make sure that the old channel is closed
-	p.channel.Close()
+	publisher.(*DefaultPublisher).channel.Close()
+	subscriber.(*DefaultSubscriber).channel.Close()
 
 	// Simulate a connection close so a new channel should be opened
 	closed <- AMQP.ErrClosed
@@ -115,6 +132,6 @@ func TestReopenChannelClient(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Second attempt should be OK as well and will only work on a new channel
-	err = test()
+	test()
 	a.So(err, ShouldBeNil)
 }

@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package broker
@@ -106,17 +106,17 @@ func TestActivateDeactivateHandler(t *testing.T) {
 	a := New(t)
 
 	b := &broker{
-		handlers: make(map[string]chan *pb.DeduplicatedUplinkMessage),
+		handlers: make(map[string]*handler),
 	}
 
-	err := b.DeactivateHandler("HandlerID")
+	err := b.DeactivateHandlerUplink("HandlerID")
 	a.So(err, ShouldNotBeNil)
 
-	ch, err := b.ActivateHandler("HandlerID")
+	ch, err := b.ActivateHandlerUplink("HandlerID")
 	a.So(err, ShouldBeNil)
 	a.So(ch, ShouldNotBeNil)
 
-	_, err = b.ActivateHandler("HandlerID")
+	_, err = b.ActivateHandlerUplink("HandlerID")
 	a.So(err, ShouldNotBeNil)
 
 	var wg sync.WaitGroup
@@ -127,7 +127,7 @@ func TestActivateDeactivateHandler(t *testing.T) {
 		wg.Done()
 	}()
 
-	err = b.DeactivateHandler("HandlerID")
+	err = b.DeactivateHandlerUplink("HandlerID")
 	a.So(err, ShouldBeNil)
 
 	wg.Wait()

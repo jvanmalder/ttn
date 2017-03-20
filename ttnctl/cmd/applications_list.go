@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -23,6 +23,8 @@ var applicationsListCmd = &cobra.Command{
 1	test	Test application	1   	1          	1
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 0, 0)
+
 		account := util.GetAccount(ctx)
 
 		apps, err := account.ListApplications()

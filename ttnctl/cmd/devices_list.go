@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -6,8 +6,8 @@ package cmd
 import (
 	"fmt"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/ttnctl/util"
-	"github.com/apex/log"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 )
@@ -28,27 +28,28 @@ test 	70B3D57EF0000024	0001D544B2936FCE	26001ADA
   INFO Listed 1 devices                         AppID=test
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 0, 0)
 
 		appID := util.GetAppID(ctx)
 
 		conn, manager := util.GetHandlerManager(ctx, appID)
 		defer conn.Close()
 
-		devices, err := manager.GetDevicesForApplication(appID)
+		devices, err := manager.GetDevicesForApplication(appID, 0, 0)
 		if err != nil {
 			ctx.WithError(err).Fatal("Could not get devices.")
 		}
 
 		table := uitable.New()
 		table.MaxColWidth = 70
-		table.AddRow("DevID", "AppEUI", "DevEUI", "DevAddr")
+		table.AddRow("DevID", "AppEUI", "DevEUI", "DevAddr", "Description")
 		for _, dev := range devices {
 			if lorawan := dev.GetLorawanDevice(); lorawan != nil {
 				devAddr := lorawan.DevAddr
 				if devAddr.IsEmpty() {
 					devAddr = nil
 				}
-				table.AddRow(dev.DevId, lorawan.AppEui, lorawan.DevEui, devAddr)
+				table.AddRow(dev.DevId, lorawan.AppEui, lorawan.DevEui, devAddr, crop(dev.Description, 20))
 			} else {
 				table.AddRow(dev.DevId)
 			}
@@ -58,7 +59,7 @@ test 	70B3D57EF0000024	0001D544B2936FCE	26001ADA
 		fmt.Println(table)
 		fmt.Println()
 
-		ctx.WithFields(log.Fields{
+		ctx.WithFields(ttnlog.Fields{
 			"AppID": appID,
 		}).Infof("Listed %d devices", len(devices))
 	},

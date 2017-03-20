@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package cmd
@@ -6,11 +6,11 @@ package cmd
 import (
 	"strings"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
+	"github.com/TheThingsNetwork/go-utils/random"
 	"github.com/TheThingsNetwork/ttn/api"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/ttnctl/util"
-	"github.com/TheThingsNetwork/ttn/utils/random"
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 )
 
@@ -28,13 +28,9 @@ var devicesPersonalizeCmd = &cobra.Command{
   INFO Personalized device                      AppID=test AppSKey=D8DD37B4B709BA76C6FEC62CAD0CCE51 DevAddr=26001ADA DevID=test NwkSKey=3382A3066850293421ED8D392B9BF4DF
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		assertArgsLength(cmd, args, 1, 3)
 
 		var err error
-
-		if len(args) == 0 {
-			cmd.UsageFunc()(cmd)
-			return
-		}
 
 		devID := args[0]
 		if !api.ValidID(devID) {
@@ -51,7 +47,7 @@ var devicesPersonalizeCmd = &cobra.Command{
 			}
 		} else {
 			ctx.Info("Generating random NwkSKey...")
-			copy(nwkSKey[:], random.Bytes(16))
+			random.FillBytes(nwkSKey[:])
 		}
 
 		var appSKey types.AppSKey
@@ -62,7 +58,7 @@ var devicesPersonalizeCmd = &cobra.Command{
 			}
 		} else {
 			ctx.Info("Generating random AppSKey...")
-			copy(appSKey[:], random.Bytes(16))
+			random.FillBytes(appSKey[:])
 		}
 
 		conn, manager := util.GetHandlerManager(ctx, appID)
@@ -99,7 +95,7 @@ var devicesPersonalizeCmd = &cobra.Command{
 			ctx.WithError(err).Fatal("Could not update Device")
 		}
 
-		ctx.WithFields(log.Fields{
+		ctx.WithFields(ttnlog.Fields{
 			"AppID":   appID,
 			"DevID":   devID,
 			"DevAddr": devAddr,

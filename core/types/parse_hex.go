@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package types
@@ -19,7 +19,7 @@ func ParseHEX(input string, length int) ([]byte, error) {
 
 	valid := pattern.MatchString(input)
 	if !valid {
-		return nil, fmt.Errorf("Invalid input: %s", input)
+		return nil, fmt.Errorf("Invalid input: %s is not hex", input)
 	}
 
 	slice, _ := hex.DecodeString(input)

@@ -16,7 +16,7 @@
 */
 package gateway
 
-import proto "github.com/golang/protobuf/proto"
+import proto "github.com/gogo/protobuf/proto"
 import fmt "fmt"
 import math "math"
 import _ "github.com/gogo/protobuf/gogoproto"
@@ -32,9 +32,10 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type GPSMetadata struct {
+	// Time in Unix nanoseconds
 	Time      int64   `protobuf:"varint,1,opt,name=time,proto3" json:"time,omitempty"`
 	Latitude  float32 `protobuf:"fixed32,2,opt,name=latitude,proto3" json:"latitude,omitempty"`
 	Longitude float32 `protobuf:"fixed32,3,opt,name=longitude,proto3" json:"longitude,omitempty"`
@@ -46,22 +47,120 @@ func (m *GPSMetadata) String() string            { return proto.CompactTextStrin
 func (*GPSMetadata) ProtoMessage()               {}
 func (*GPSMetadata) Descriptor() ([]byte, []int) { return fileDescriptorGateway, []int{0} }
 
+func (m *GPSMetadata) GetTime() int64 {
+	if m != nil {
+		return m.Time
+	}
+	return 0
+}
+
+func (m *GPSMetadata) GetLatitude() float32 {
+	if m != nil {
+		return m.Latitude
+	}
+	return 0
+}
+
+func (m *GPSMetadata) GetLongitude() float32 {
+	if m != nil {
+		return m.Longitude
+	}
+	return 0
+}
+
+func (m *GPSMetadata) GetAltitude() int32 {
+	if m != nil {
+		return m.Altitude
+	}
+	return 0
+}
+
 type RxMetadata struct {
-	GatewayId string       `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
-	Timestamp uint32       `protobuf:"varint,11,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Time      int64        `protobuf:"varint,12,opt,name=time,proto3" json:"time,omitempty"`
-	RfChain   uint32       `protobuf:"varint,21,opt,name=rf_chain,json=rfChain,proto3" json:"rf_chain,omitempty"`
-	Channel   uint32       `protobuf:"varint,22,opt,name=channel,proto3" json:"channel,omitempty"`
-	Frequency uint64       `protobuf:"varint,31,opt,name=frequency,proto3" json:"frequency,omitempty"`
-	Rssi      float32      `protobuf:"fixed32,32,opt,name=rssi,proto3" json:"rssi,omitempty"`
-	Snr       float32      `protobuf:"fixed32,33,opt,name=snr,proto3" json:"snr,omitempty"`
-	Gps       *GPSMetadata `protobuf:"bytes,41,opt,name=gps" json:"gps,omitempty"`
+	GatewayId string `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
+	// Indicates whether the gateway is trusted. Components that are able to verify gateway trust MUST do so and set this value accordingly
+	GatewayTrusted bool `protobuf:"varint,2,opt,name=gateway_trusted,json=gatewayTrusted,proto3" json:"gateway_trusted,omitempty"`
+	// Timestamp (uptime of LoRa module) in microseconds with rollover
+	Timestamp uint32 `protobuf:"varint,11,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Time in Unix nanoseconds
+	Time    int64  `protobuf:"varint,12,opt,name=time,proto3" json:"time,omitempty"`
+	RfChain uint32 `protobuf:"varint,21,opt,name=rf_chain,json=rfChain,proto3" json:"rf_chain,omitempty"`
+	Channel uint32 `protobuf:"varint,22,opt,name=channel,proto3" json:"channel,omitempty"`
+	// Frequency in Hz
+	Frequency uint64 `protobuf:"varint,31,opt,name=frequency,proto3" json:"frequency,omitempty"`
+	// Received signal strength in dBm
+	Rssi float32 `protobuf:"fixed32,32,opt,name=rssi,proto3" json:"rssi,omitempty"`
+	// Signal-to-noise-ratio in dB
+	Snr float32      `protobuf:"fixed32,33,opt,name=snr,proto3" json:"snr,omitempty"`
+	Gps *GPSMetadata `protobuf:"bytes,41,opt,name=gps" json:"gps,omitempty"`
 }
 
 func (m *RxMetadata) Reset()                    { *m = RxMetadata{} }
 func (m *RxMetadata) String() string            { return proto.CompactTextString(m) }
 func (*RxMetadata) ProtoMessage()               {}
 func (*RxMetadata) Descriptor() ([]byte, []int) { return fileDescriptorGateway, []int{1} }
+
+func (m *RxMetadata) GetGatewayId() string {
+	if m != nil {
+		return m.GatewayId
+	}
+	return ""
+}
+
+func (m *RxMetadata) GetGatewayTrusted() bool {
+	if m != nil {
+		return m.GatewayTrusted
+	}
+	return false
+}
+
+func (m *RxMetadata) GetTimestamp() uint32 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
+func (m *RxMetadata) GetTime() int64 {
+	if m != nil {
+		return m.Time
+	}
+	return 0
+}
+
+func (m *RxMetadata) GetRfChain() uint32 {
+	if m != nil {
+		return m.RfChain
+	}
+	return 0
+}
+
+func (m *RxMetadata) GetChannel() uint32 {
+	if m != nil {
+		return m.Channel
+	}
+	return 0
+}
+
+func (m *RxMetadata) GetFrequency() uint64 {
+	if m != nil {
+		return m.Frequency
+	}
+	return 0
+}
+
+func (m *RxMetadata) GetRssi() float32 {
+	if m != nil {
+		return m.Rssi
+	}
+	return 0
+}
+
+func (m *RxMetadata) GetSnr() float32 {
+	if m != nil {
+		return m.Snr
+	}
+	return 0
+}
 
 func (m *RxMetadata) GetGps() *GPSMetadata {
 	if m != nil {
@@ -71,12 +170,17 @@ func (m *RxMetadata) GetGps() *GPSMetadata {
 }
 
 type TxConfiguration struct {
-	Timestamp             uint32 `protobuf:"varint,11,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	RfChain               uint32 `protobuf:"varint,21,opt,name=rf_chain,json=rfChain,proto3" json:"rf_chain,omitempty"`
-	Frequency             uint64 `protobuf:"varint,22,opt,name=frequency,proto3" json:"frequency,omitempty"`
-	Power                 int32  `protobuf:"varint,23,opt,name=power,proto3" json:"power,omitempty"`
-	PolarizationInversion bool   `protobuf:"varint,31,opt,name=polarization_inversion,json=polarizationInversion,proto3" json:"polarization_inversion,omitempty"`
-	FrequencyDeviation    uint32 `protobuf:"varint,32,opt,name=frequency_deviation,json=frequencyDeviation,proto3" json:"frequency_deviation,omitempty"`
+	// Timestamp (uptime of LoRa module) in microseconds with rollover
+	Timestamp uint32 `protobuf:"varint,11,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	RfChain   uint32 `protobuf:"varint,21,opt,name=rf_chain,json=rfChain,proto3" json:"rf_chain,omitempty"`
+	// Frequency in Hz
+	Frequency uint64 `protobuf:"varint,22,opt,name=frequency,proto3" json:"frequency,omitempty"`
+	// Transmit power in dBm
+	Power int32 `protobuf:"varint,23,opt,name=power,proto3" json:"power,omitempty"`
+	// LoRa polarization inversion (basically always true for messages from gateway to node)
+	PolarizationInversion bool `protobuf:"varint,31,opt,name=polarization_inversion,json=polarizationInversion,proto3" json:"polarization_inversion,omitempty"`
+	// FSK frequency deviation in Hz
+	FrequencyDeviation uint32 `protobuf:"varint,32,opt,name=frequency_deviation,json=frequencyDeviation,proto3" json:"frequency_deviation,omitempty"`
 }
 
 func (m *TxConfiguration) Reset()                    { *m = TxConfiguration{} }
@@ -84,28 +188,154 @@ func (m *TxConfiguration) String() string            { return proto.CompactTextS
 func (*TxConfiguration) ProtoMessage()               {}
 func (*TxConfiguration) Descriptor() ([]byte, []int) { return fileDescriptorGateway, []int{2} }
 
+func (m *TxConfiguration) GetTimestamp() uint32 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
+func (m *TxConfiguration) GetRfChain() uint32 {
+	if m != nil {
+		return m.RfChain
+	}
+	return 0
+}
+
+func (m *TxConfiguration) GetFrequency() uint64 {
+	if m != nil {
+		return m.Frequency
+	}
+	return 0
+}
+
+func (m *TxConfiguration) GetPower() int32 {
+	if m != nil {
+		return m.Power
+	}
+	return 0
+}
+
+func (m *TxConfiguration) GetPolarizationInversion() bool {
+	if m != nil {
+		return m.PolarizationInversion
+	}
+	return false
+}
+
+func (m *TxConfiguration) GetFrequencyDeviation() uint32 {
+	if m != nil {
+		return m.FrequencyDeviation
+	}
+	return 0
+}
+
 // message Status represents a status update from a Gateway.
-// See https://gist.github.com/htdvisser/b2b1078005ed770233278a366430f992#stat
 type Status struct {
-	Timestamp    uint32       `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Time         int64        `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
-	Ip           []string     `protobuf:"bytes,11,rep,name=ip" json:"ip,omitempty"`
-	Platform     string       `protobuf:"bytes,12,opt,name=platform,proto3" json:"platform,omitempty"`
-	ContactEmail string       `protobuf:"bytes,13,opt,name=contact_email,json=contactEmail,proto3" json:"contact_email,omitempty"`
-	Description  string       `protobuf:"bytes,14,opt,name=description,proto3" json:"description,omitempty"`
-	Region       string       `protobuf:"bytes,15,opt,name=region,proto3" json:"region,omitempty"`
-	Gps          *GPSMetadata `protobuf:"bytes,21,opt,name=gps" json:"gps,omitempty"`
-	Rtt          uint32       `protobuf:"varint,31,opt,name=rtt,proto3" json:"rtt,omitempty"`
-	RxIn         uint32       `protobuf:"varint,41,opt,name=rx_in,json=rxIn,proto3" json:"rx_in,omitempty"`
-	RxOk         uint32       `protobuf:"varint,42,opt,name=rx_ok,json=rxOk,proto3" json:"rx_ok,omitempty"`
-	TxIn         uint32       `protobuf:"varint,43,opt,name=tx_in,json=txIn,proto3" json:"tx_in,omitempty"`
-	TxOk         uint32       `protobuf:"varint,44,opt,name=tx_ok,json=txOk,proto3" json:"tx_ok,omitempty"`
+	// Timestamp (uptime of gateway) in microseconds with rollover
+	Timestamp uint32 `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Time in Unix nanoseconds
+	Time int64 `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
+	// Indicates whether the gateway is trusted. Components that are able to verify gateway trust MUST do so and set this value accordingly
+	GatewayTrusted bool     `protobuf:"varint,3,opt,name=gateway_trusted,json=gatewayTrusted,proto3" json:"gateway_trusted,omitempty"`
+	Ip             []string `protobuf:"bytes,11,rep,name=ip" json:"ip,omitempty"`
+	Platform       string   `protobuf:"bytes,12,opt,name=platform,proto3" json:"platform,omitempty"`
+	ContactEmail   string   `protobuf:"bytes,13,opt,name=contact_email,json=contactEmail,proto3" json:"contact_email,omitempty"`
+	Description    string   `protobuf:"bytes,14,opt,name=description,proto3" json:"description,omitempty"`
+	// The gateway's region: one of EU_863_870, US_902_928, CN_779_787, EU_433, AU_915_928, CN_470_510, AS_923, KR_920_923
+	Region string `protobuf:"bytes,15,opt,name=region,proto3" json:"region,omitempty"`
+	// The value of Bridge is set by the Bridge
+	Bridge string `protobuf:"bytes,16,opt,name=bridge,proto3" json:"bridge,omitempty"`
+	// The value of Router is set by the Router
+	Router string       `protobuf:"bytes,17,opt,name=router,proto3" json:"router,omitempty"`
+	Gps    *GPSMetadata `protobuf:"bytes,21,opt,name=gps" json:"gps,omitempty"`
+	// Round-trip time to the server in milliseconds
+	Rtt uint32 `protobuf:"varint,31,opt,name=rtt,proto3" json:"rtt,omitempty"`
+	// Total number of received uplink packets since boot
+	RxIn uint32 `protobuf:"varint,41,opt,name=rx_in,json=rxIn,proto3" json:"rx_in,omitempty"`
+	// Total number of successful (correct) uplink packets since boot
+	RxOk uint32 `protobuf:"varint,42,opt,name=rx_ok,json=rxOk,proto3" json:"rx_ok,omitempty"`
+	// Total number of received downlink packets since boot
+	TxIn uint32 `protobuf:"varint,43,opt,name=tx_in,json=txIn,proto3" json:"tx_in,omitempty"`
+	// Total number of successfully sent downlink packets since boot
+	TxOk uint32            `protobuf:"varint,44,opt,name=tx_ok,json=txOk,proto3" json:"tx_ok,omitempty"`
+	Os   *Status_OSMetrics `protobuf:"bytes,51,opt,name=os" json:"os,omitempty"`
 }
 
 func (m *Status) Reset()                    { *m = Status{} }
 func (m *Status) String() string            { return proto.CompactTextString(m) }
 func (*Status) ProtoMessage()               {}
 func (*Status) Descriptor() ([]byte, []int) { return fileDescriptorGateway, []int{3} }
+
+func (m *Status) GetTimestamp() uint32 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
+func (m *Status) GetTime() int64 {
+	if m != nil {
+		return m.Time
+	}
+	return 0
+}
+
+func (m *Status) GetGatewayTrusted() bool {
+	if m != nil {
+		return m.GatewayTrusted
+	}
+	return false
+}
+
+func (m *Status) GetIp() []string {
+	if m != nil {
+		return m.Ip
+	}
+	return nil
+}
+
+func (m *Status) GetPlatform() string {
+	if m != nil {
+		return m.Platform
+	}
+	return ""
+}
+
+func (m *Status) GetContactEmail() string {
+	if m != nil {
+		return m.ContactEmail
+	}
+	return ""
+}
+
+func (m *Status) GetDescription() string {
+	if m != nil {
+		return m.Description
+	}
+	return ""
+}
+
+func (m *Status) GetRegion() string {
+	if m != nil {
+		return m.Region
+	}
+	return ""
+}
+
+func (m *Status) GetBridge() string {
+	if m != nil {
+		return m.Bridge
+	}
+	return ""
+}
+
+func (m *Status) GetRouter() string {
+	if m != nil {
+		return m.Router
+	}
+	return ""
+}
 
 func (m *Status) GetGps() *GPSMetadata {
 	if m != nil {
@@ -114,11 +344,111 @@ func (m *Status) GetGps() *GPSMetadata {
 	return nil
 }
 
+func (m *Status) GetRtt() uint32 {
+	if m != nil {
+		return m.Rtt
+	}
+	return 0
+}
+
+func (m *Status) GetRxIn() uint32 {
+	if m != nil {
+		return m.RxIn
+	}
+	return 0
+}
+
+func (m *Status) GetRxOk() uint32 {
+	if m != nil {
+		return m.RxOk
+	}
+	return 0
+}
+
+func (m *Status) GetTxIn() uint32 {
+	if m != nil {
+		return m.TxIn
+	}
+	return 0
+}
+
+func (m *Status) GetTxOk() uint32 {
+	if m != nil {
+		return m.TxOk
+	}
+	return 0
+}
+
+func (m *Status) GetOs() *Status_OSMetrics {
+	if m != nil {
+		return m.Os
+	}
+	return nil
+}
+
+// Additional metrics from the operating system
+type Status_OSMetrics struct {
+	Load_1           float32 `protobuf:"fixed32,1,opt,name=load_1,json=load1,proto3" json:"load_1,omitempty"`
+	Load_5           float32 `protobuf:"fixed32,2,opt,name=load_5,json=load5,proto3" json:"load_5,omitempty"`
+	Load_15          float32 `protobuf:"fixed32,3,opt,name=load_15,json=load15,proto3" json:"load_15,omitempty"`
+	CpuPercentage    float32 `protobuf:"fixed32,11,opt,name=cpu_percentage,json=cpuPercentage,proto3" json:"cpu_percentage,omitempty"`
+	MemoryPercentage float32 `protobuf:"fixed32,21,opt,name=memory_percentage,json=memoryPercentage,proto3" json:"memory_percentage,omitempty"`
+	Temperature      float32 `protobuf:"fixed32,31,opt,name=temperature,proto3" json:"temperature,omitempty"`
+}
+
+func (m *Status_OSMetrics) Reset()                    { *m = Status_OSMetrics{} }
+func (m *Status_OSMetrics) String() string            { return proto.CompactTextString(m) }
+func (*Status_OSMetrics) ProtoMessage()               {}
+func (*Status_OSMetrics) Descriptor() ([]byte, []int) { return fileDescriptorGateway, []int{3, 0} }
+
+func (m *Status_OSMetrics) GetLoad_1() float32 {
+	if m != nil {
+		return m.Load_1
+	}
+	return 0
+}
+
+func (m *Status_OSMetrics) GetLoad_5() float32 {
+	if m != nil {
+		return m.Load_5
+	}
+	return 0
+}
+
+func (m *Status_OSMetrics) GetLoad_15() float32 {
+	if m != nil {
+		return m.Load_15
+	}
+	return 0
+}
+
+func (m *Status_OSMetrics) GetCpuPercentage() float32 {
+	if m != nil {
+		return m.CpuPercentage
+	}
+	return 0
+}
+
+func (m *Status_OSMetrics) GetMemoryPercentage() float32 {
+	if m != nil {
+		return m.MemoryPercentage
+	}
+	return 0
+}
+
+func (m *Status_OSMetrics) GetTemperature() float32 {
+	if m != nil {
+		return m.Temperature
+	}
+	return 0
+}
+
 func init() {
 	proto.RegisterType((*GPSMetadata)(nil), "gateway.GPSMetadata")
 	proto.RegisterType((*RxMetadata)(nil), "gateway.RxMetadata")
 	proto.RegisterType((*TxConfiguration)(nil), "gateway.TxConfiguration")
 	proto.RegisterType((*Status)(nil), "gateway.Status")
+	proto.RegisterType((*Status_OSMetrics)(nil), "gateway.Status.OSMetrics")
 }
 func (m *GPSMetadata) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
@@ -178,6 +508,16 @@ func (m *RxMetadata) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintGateway(dAtA, i, uint64(len(m.GatewayId)))
 		i += copy(dAtA[i:], m.GatewayId)
+	}
+	if m.GatewayTrusted {
+		dAtA[i] = 0x10
+		i++
+		if m.GatewayTrusted {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
 	}
 	if m.Timestamp != 0 {
 		dAtA[i] = 0x58
@@ -327,6 +667,16 @@ func (m *Status) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintGateway(dAtA, i, uint64(m.Time))
 	}
+	if m.GatewayTrusted {
+		dAtA[i] = 0x18
+		i++
+		if m.GatewayTrusted {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
 	if len(m.Ip) > 0 {
 		for _, s := range m.Ip {
 			dAtA[i] = 0x5a
@@ -365,6 +715,22 @@ func (m *Status) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintGateway(dAtA, i, uint64(len(m.Region)))
 		i += copy(dAtA[i:], m.Region)
+	}
+	if len(m.Bridge) > 0 {
+		dAtA[i] = 0x82
+		i++
+		dAtA[i] = 0x1
+		i++
+		i = encodeVarintGateway(dAtA, i, uint64(len(m.Bridge)))
+		i += copy(dAtA[i:], m.Bridge)
+	}
+	if len(m.Router) > 0 {
+		dAtA[i] = 0x8a
+		i++
+		dAtA[i] = 0x1
+		i++
+		i = encodeVarintGateway(dAtA, i, uint64(len(m.Router)))
+		i += copy(dAtA[i:], m.Router)
 	}
 	if m.Gps != nil {
 		dAtA[i] = 0xaa
@@ -412,6 +778,70 @@ func (m *Status) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x2
 		i++
 		i = encodeVarintGateway(dAtA, i, uint64(m.TxOk))
+	}
+	if m.Os != nil {
+		dAtA[i] = 0x9a
+		i++
+		dAtA[i] = 0x3
+		i++
+		i = encodeVarintGateway(dAtA, i, uint64(m.Os.Size()))
+		n3, err := m.Os.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
+	}
+	return i, nil
+}
+
+func (m *Status_OSMetrics) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Status_OSMetrics) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Load_1 != 0 {
+		dAtA[i] = 0xd
+		i++
+		i = encodeFixed32Gateway(dAtA, i, uint32(math.Float32bits(float32(m.Load_1))))
+	}
+	if m.Load_5 != 0 {
+		dAtA[i] = 0x15
+		i++
+		i = encodeFixed32Gateway(dAtA, i, uint32(math.Float32bits(float32(m.Load_5))))
+	}
+	if m.Load_15 != 0 {
+		dAtA[i] = 0x1d
+		i++
+		i = encodeFixed32Gateway(dAtA, i, uint32(math.Float32bits(float32(m.Load_15))))
+	}
+	if m.CpuPercentage != 0 {
+		dAtA[i] = 0x5d
+		i++
+		i = encodeFixed32Gateway(dAtA, i, uint32(math.Float32bits(float32(m.CpuPercentage))))
+	}
+	if m.MemoryPercentage != 0 {
+		dAtA[i] = 0xad
+		i++
+		dAtA[i] = 0x1
+		i++
+		i = encodeFixed32Gateway(dAtA, i, uint32(math.Float32bits(float32(m.MemoryPercentage))))
+	}
+	if m.Temperature != 0 {
+		dAtA[i] = 0xfd
+		i++
+		dAtA[i] = 0x1
+		i++
+		i = encodeFixed32Gateway(dAtA, i, uint32(math.Float32bits(float32(m.Temperature))))
 	}
 	return i, nil
 }
@@ -467,6 +897,9 @@ func (m *RxMetadata) Size() (n int) {
 	l = len(m.GatewayId)
 	if l > 0 {
 		n += 1 + l + sovGateway(uint64(l))
+	}
+	if m.GatewayTrusted {
+		n += 2
 	}
 	if m.Timestamp != 0 {
 		n += 1 + sovGateway(uint64(m.Timestamp))
@@ -529,6 +962,9 @@ func (m *Status) Size() (n int) {
 	if m.Time != 0 {
 		n += 1 + sovGateway(uint64(m.Time))
 	}
+	if m.GatewayTrusted {
+		n += 2
+	}
 	if len(m.Ip) > 0 {
 		for _, s := range m.Ip {
 			l = len(s)
@@ -551,6 +987,14 @@ func (m *Status) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovGateway(uint64(l))
 	}
+	l = len(m.Bridge)
+	if l > 0 {
+		n += 2 + l + sovGateway(uint64(l))
+	}
+	l = len(m.Router)
+	if l > 0 {
+		n += 2 + l + sovGateway(uint64(l))
+	}
 	if m.Gps != nil {
 		l = m.Gps.Size()
 		n += 2 + l + sovGateway(uint64(l))
@@ -569,6 +1013,34 @@ func (m *Status) Size() (n int) {
 	}
 	if m.TxOk != 0 {
 		n += 2 + sovGateway(uint64(m.TxOk))
+	}
+	if m.Os != nil {
+		l = m.Os.Size()
+		n += 2 + l + sovGateway(uint64(l))
+	}
+	return n
+}
+
+func (m *Status_OSMetrics) Size() (n int) {
+	var l int
+	_ = l
+	if m.Load_1 != 0 {
+		n += 5
+	}
+	if m.Load_5 != 0 {
+		n += 5
+	}
+	if m.Load_15 != 0 {
+		n += 5
+	}
+	if m.CpuPercentage != 0 {
+		n += 5
+	}
+	if m.MemoryPercentage != 0 {
+		n += 6
+	}
+	if m.Temperature != 0 {
+		n += 6
 	}
 	return n
 }
@@ -760,6 +1232,26 @@ func (m *RxMetadata) Unmarshal(dAtA []byte) error {
 			}
 			m.GatewayId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GatewayTrusted", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowGateway
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.GatewayTrusted = bool(v != 0)
 		case 11:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
@@ -1169,6 +1661,26 @@ func (m *Status) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GatewayTrusted", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowGateway
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.GatewayTrusted = bool(v != 0)
 		case 11:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Ip", wireType)
@@ -1314,6 +1826,64 @@ func (m *Status) Unmarshal(dAtA []byte) error {
 			}
 			m.Region = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 16:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Bridge", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowGateway
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthGateway
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Bridge = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 17:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Router", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowGateway
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthGateway
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Router = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		case 21:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Gps", wireType)
@@ -1442,6 +2012,173 @@ func (m *Status) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		case 51:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Os", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowGateway
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthGateway
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Os == nil {
+				m.Os = &Status_OSMetrics{}
+			}
+			if err := m.Os.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipGateway(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthGateway
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Status_OSMetrics) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowGateway
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: OSMetrics: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: OSMetrics: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 5 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Load_1", wireType)
+			}
+			var v uint32
+			if (iNdEx + 4) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += 4
+			v = uint32(dAtA[iNdEx-4])
+			v |= uint32(dAtA[iNdEx-3]) << 8
+			v |= uint32(dAtA[iNdEx-2]) << 16
+			v |= uint32(dAtA[iNdEx-1]) << 24
+			m.Load_1 = float32(math.Float32frombits(v))
+		case 2:
+			if wireType != 5 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Load_5", wireType)
+			}
+			var v uint32
+			if (iNdEx + 4) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += 4
+			v = uint32(dAtA[iNdEx-4])
+			v |= uint32(dAtA[iNdEx-3]) << 8
+			v |= uint32(dAtA[iNdEx-2]) << 16
+			v |= uint32(dAtA[iNdEx-1]) << 24
+			m.Load_5 = float32(math.Float32frombits(v))
+		case 3:
+			if wireType != 5 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Load_15", wireType)
+			}
+			var v uint32
+			if (iNdEx + 4) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += 4
+			v = uint32(dAtA[iNdEx-4])
+			v |= uint32(dAtA[iNdEx-3]) << 8
+			v |= uint32(dAtA[iNdEx-2]) << 16
+			v |= uint32(dAtA[iNdEx-1]) << 24
+			m.Load_15 = float32(math.Float32frombits(v))
+		case 11:
+			if wireType != 5 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CpuPercentage", wireType)
+			}
+			var v uint32
+			if (iNdEx + 4) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += 4
+			v = uint32(dAtA[iNdEx-4])
+			v |= uint32(dAtA[iNdEx-3]) << 8
+			v |= uint32(dAtA[iNdEx-2]) << 16
+			v |= uint32(dAtA[iNdEx-1]) << 24
+			m.CpuPercentage = float32(math.Float32frombits(v))
+		case 21:
+			if wireType != 5 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MemoryPercentage", wireType)
+			}
+			var v uint32
+			if (iNdEx + 4) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += 4
+			v = uint32(dAtA[iNdEx-4])
+			v |= uint32(dAtA[iNdEx-3]) << 8
+			v |= uint32(dAtA[iNdEx-2]) << 16
+			v |= uint32(dAtA[iNdEx-1]) << 24
+			m.MemoryPercentage = float32(math.Float32frombits(v))
+		case 31:
+			if wireType != 5 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Temperature", wireType)
+			}
+			var v uint32
+			if (iNdEx + 4) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += 4
+			v = uint32(dAtA[iNdEx-4])
+			v |= uint32(dAtA[iNdEx-3]) << 8
+			v |= uint32(dAtA[iNdEx-2]) << 16
+			v |= uint32(dAtA[iNdEx-1]) << 24
+			m.Temperature = float32(math.Float32frombits(v))
 		default:
 			iNdEx = preIndex
 			skippy, err := skipGateway(dAtA[iNdEx:])
@@ -1573,42 +2310,52 @@ func init() {
 }
 
 var fileDescriptorGateway = []byte{
-	// 590 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x94, 0x54, 0x4d, 0x6f, 0xd3, 0x30,
-	0x18, 0xc6, 0x6d, 0xf7, 0x51, 0x77, 0xdd, 0x90, 0xb7, 0x15, 0x33, 0x41, 0x09, 0x45, 0x42, 0x81,
-	0xc1, 0x2a, 0x81, 0x38, 0x70, 0xe0, 0xc2, 0x40, 0x68, 0x07, 0x18, 0xf2, 0x76, 0xe2, 0x52, 0x79,
-	0x89, 0x93, 0x5a, 0x4d, 0xed, 0xe0, 0x38, 0x6b, 0xc7, 0x2f, 0xe1, 0x27, 0x71, 0x44, 0xe2, 0x0f,
-	0xa0, 0x21, 0xf1, 0x33, 0x10, 0xf2, 0xdb, 0x24, 0xcb, 0x90, 0x60, 0xe2, 0xd4, 0xf7, 0x79, 0x9e,
-	0xd7, 0x7e, 0x3f, 0x1e, 0x37, 0xf8, 0x79, 0x2c, 0xed, 0x38, 0x3f, 0xd9, 0x0b, 0xf4, 0x74, 0x78,
-	0x3c, 0x16, 0xc7, 0x63, 0xa9, 0xe2, 0xec, 0x9d, 0xb0, 0x33, 0x6d, 0x26, 0x43, 0x6b, 0xd5, 0x90,
-	0xa7, 0x72, 0x18, 0x73, 0x2b, 0x66, 0xfc, 0xac, 0xfc, 0xdd, 0x4b, 0x8d, 0xb6, 0x9a, 0xac, 0x14,
-	0x70, 0xe7, 0x71, 0xed, 0x8e, 0x58, 0xc7, 0x7a, 0x08, 0xfa, 0x49, 0x1e, 0x01, 0x02, 0x00, 0xd1,
-	0xe2, 0xdc, 0x60, 0x86, 0x3b, 0x6f, 0xde, 0x1f, 0xbd, 0x15, 0x96, 0x87, 0xdc, 0x72, 0x42, 0x70,
-	0xcb, 0xca, 0xa9, 0xa0, 0xc8, 0x43, 0x7e, 0x93, 0x41, 0x4c, 0x76, 0xf0, 0x6a, 0xc2, 0xad, 0xb4,
-	0x79, 0x28, 0x68, 0xc3, 0x43, 0x7e, 0x83, 0x55, 0x98, 0xdc, 0xc2, 0xed, 0x44, 0xab, 0x78, 0x21,
-	0x36, 0x41, 0xbc, 0x20, 0xdc, 0x49, 0x9e, 0x14, 0x27, 0x5b, 0x1e, 0xf2, 0x97, 0x58, 0x85, 0x07,
-	0xbf, 0x10, 0xc6, 0x6c, 0x5e, 0x15, 0xbe, 0x8d, 0x71, 0x31, 0xc1, 0x48, 0x86, 0x50, 0xbe, 0xcd,
-	0xda, 0x05, 0x73, 0x10, 0xba, 0x3a, 0xae, 0x97, 0xcc, 0xf2, 0x69, 0x4a, 0x3b, 0x1e, 0xf2, 0xbb,
-	0xec, 0x82, 0xa8, 0xba, 0x5e, 0xab, 0x75, 0x7d, 0x13, 0xaf, 0x9a, 0x68, 0x14, 0x8c, 0xb9, 0x54,
-	0x74, 0x1b, 0x0e, 0xac, 0x98, 0x68, 0xdf, 0x41, 0x42, 0xf1, 0x4a, 0x30, 0xe6, 0x4a, 0x89, 0x84,
-	0xf6, 0x16, 0x4a, 0x01, 0x5d, 0x99, 0xc8, 0x88, 0x8f, 0xb9, 0x50, 0xc1, 0x19, 0xbd, 0xe3, 0x21,
-	0xbf, 0xc5, 0x2e, 0x08, 0x57, 0xc6, 0x64, 0x99, 0xa4, 0x1e, 0xcc, 0x09, 0x31, 0xb9, 0x8e, 0x9b,
-	0x99, 0x32, 0xf4, 0x2e, 0x50, 0x2e, 0x24, 0xf7, 0x71, 0x33, 0x4e, 0x33, 0xfa, 0xc0, 0x43, 0x7e,
-	0xe7, 0xc9, 0xd6, 0x5e, 0x69, 0x53, 0x6d, 0xcb, 0xcc, 0x25, 0x0c, 0x7e, 0x22, 0xbc, 0x71, 0x3c,
-	0xdf, 0xd7, 0x2a, 0x92, 0x71, 0x6e, 0xb8, 0x95, 0x5a, 0x5d, 0x31, 0xe6, 0x3f, 0x46, 0xba, 0xd4,
-	0x78, 0xef, 0xcf, 0xc6, 0xb7, 0xf0, 0x52, 0xaa, 0x67, 0xc2, 0xd0, 0x1b, 0x60, 0xc2, 0x02, 0x90,
-	0x67, 0xb8, 0x97, 0xea, 0x84, 0x1b, 0xf9, 0x09, 0x8a, 0x8f, 0xa4, 0x3a, 0x15, 0x26, 0x93, 0x5a,
-	0xc1, 0xe4, 0xab, 0x6c, 0xbb, 0xae, 0x1e, 0x94, 0x22, 0x19, 0xe2, 0xcd, 0xea, 0xe6, 0x51, 0x28,
-	0x4e, 0x25, 0xe8, 0xb0, 0x94, 0x2e, 0x23, 0x95, 0xf4, 0xaa, 0x54, 0x06, 0xdf, 0x1a, 0x78, 0xf9,
-	0xc8, 0x72, 0x9b, 0x67, 0x97, 0xe7, 0x43, 0x7f, 0xb3, 0xb1, 0x51, 0xb3, 0x71, 0x1d, 0x37, 0xa4,
-	0x5b, 0x45, 0xd3, 0x6f, 0xb3, 0x86, 0x4c, 0xdd, 0x93, 0x4a, 0x13, 0x6e, 0x23, 0x6d, 0xa6, 0x60,
-	0x77, 0x9b, 0x55, 0x98, 0xdc, 0xc3, 0xdd, 0x40, 0x2b, 0xcb, 0x03, 0x3b, 0x12, 0x53, 0x2e, 0x13,
-	0xda, 0x85, 0x84, 0xb5, 0x82, 0x7c, 0xed, 0x38, 0xe2, 0xe1, 0x4e, 0x28, 0xb2, 0xc0, 0xc8, 0x14,
-	0xda, 0x5e, 0x87, 0x94, 0x3a, 0x45, 0x7a, 0x78, 0xd9, 0x88, 0xd8, 0x89, 0x1b, 0x20, 0x16, 0xa8,
-	0x34, 0x76, 0xfb, 0x0a, 0x63, 0xdd, 0x93, 0x30, 0xd6, 0xc2, 0x12, 0xbb, 0xcc, 0x85, 0x64, 0x13,
-	0x2f, 0x99, 0xf9, 0x48, 0x2a, 0x78, 0x14, 0x5d, 0xd6, 0x32, 0xf3, 0x03, 0x55, 0x90, 0x7a, 0x42,
-	0x1f, 0x96, 0xe4, 0xe1, 0xc4, 0x91, 0x16, 0x32, 0x77, 0x17, 0xa4, 0x2d, 0x32, 0x2d, 0x64, 0x3e,
-	0x2a, 0xc9, 0xc3, 0xc9, 0xcb, 0x17, 0x5f, 0xce, 0xfb, 0xe8, 0xeb, 0x79, 0x1f, 0x7d, 0x3f, 0xef,
-	0xa3, 0xcf, 0x3f, 0xfa, 0xd7, 0x3e, 0xec, 0xfe, 0xc7, 0xd7, 0xe3, 0x64, 0x19, 0xfe, 0xfe, 0x4f,
-	0x7f, 0x07, 0x00, 0x00, 0xff, 0xff, 0x82, 0xbf, 0x95, 0x20, 0x73, 0x04, 0x00, 0x00,
+	// 748 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x94, 0x54, 0x4f, 0x93, 0xdb, 0x34,
+	0x14, 0x1f, 0x3b, 0xff, 0x95, 0x26, 0xbb, 0x55, 0x9b, 0x54, 0xdd, 0x81, 0xc5, 0x84, 0x01, 0x52,
+	0x16, 0x92, 0x59, 0x3a, 0x39, 0xf4, 0x4a, 0x61, 0x98, 0x3d, 0xc0, 0x76, 0xd4, 0x9c, 0xb8, 0x78,
+	0x14, 0x5b, 0x71, 0x34, 0xb1, 0x25, 0x23, 0xcb, 0x4d, 0x96, 0x8f, 0xc3, 0x85, 0xaf, 0xd2, 0x23,
+	0x1f, 0x81, 0xd9, 0x03, 0x9f, 0x83, 0xd1, 0xf3, 0x9f, 0x75, 0x99, 0xc2, 0x4e, 0x4f, 0x79, 0xbf,
+	0x3f, 0xf2, 0x7b, 0x4f, 0xef, 0x45, 0xe8, 0x45, 0x24, 0xcc, 0x2e, 0xdf, 0x2c, 0x02, 0x95, 0x2c,
+	0xd7, 0x3b, 0xbe, 0xde, 0x09, 0x19, 0x65, 0x3f, 0x73, 0x73, 0x50, 0x7a, 0xbf, 0x34, 0x46, 0x2e,
+	0x59, 0x2a, 0x96, 0x11, 0x33, 0xfc, 0xc0, 0x6e, 0xaa, 0xdf, 0x45, 0xaa, 0x95, 0x51, 0xb8, 0x57,
+	0xc2, 0xb3, 0x6f, 0x1a, 0xdf, 0x88, 0x54, 0xa4, 0x96, 0xa0, 0x6f, 0xf2, 0x2d, 0x20, 0x00, 0x10,
+	0x15, 0xe7, 0x66, 0x07, 0x34, 0xfc, 0xf1, 0xd5, 0xeb, 0x9f, 0xb8, 0x61, 0x21, 0x33, 0x0c, 0x63,
+	0xd4, 0x36, 0x22, 0xe1, 0xc4, 0xf1, 0x9c, 0x79, 0x8b, 0x42, 0x8c, 0xcf, 0x50, 0x3f, 0x66, 0x46,
+	0x98, 0x3c, 0xe4, 0xc4, 0xf5, 0x9c, 0xb9, 0x4b, 0x6b, 0x8c, 0x3f, 0x42, 0x83, 0x58, 0xc9, 0xa8,
+	0x10, 0x5b, 0x20, 0xde, 0x11, 0xf6, 0x24, 0x8b, 0xcb, 0x93, 0x6d, 0xcf, 0x99, 0x77, 0x68, 0x8d,
+	0x67, 0x7f, 0xb8, 0x08, 0xd1, 0x63, 0x9d, 0xf8, 0x63, 0x84, 0xca, 0x0e, 0x7c, 0x11, 0x42, 0xfa,
+	0x01, 0x1d, 0x94, 0xcc, 0x55, 0x88, 0xbf, 0x44, 0x27, 0x95, 0x6c, 0x74, 0x9e, 0x19, 0x1e, 0x42,
+	0x29, 0x7d, 0x3a, 0x2e, 0xe9, 0x75, 0xc1, 0xda, 0x82, 0x6c, 0xd1, 0x99, 0x61, 0x49, 0x4a, 0x86,
+	0x9e, 0x33, 0x1f, 0xd1, 0x3b, 0xa2, 0x6e, 0xef, 0x41, 0xa3, 0xbd, 0xa7, 0xa8, 0xaf, 0xb7, 0x7e,
+	0xb0, 0x63, 0x42, 0x92, 0x09, 0x1c, 0xe8, 0xe9, 0xed, 0x4b, 0x0b, 0x31, 0x41, 0xbd, 0x60, 0xc7,
+	0xa4, 0xe4, 0x31, 0x99, 0x16, 0x4a, 0x09, 0x6d, 0x9a, 0xad, 0xe6, 0xbf, 0xe6, 0x5c, 0x06, 0x37,
+	0xe4, 0x13, 0xcf, 0x99, 0xb7, 0xe9, 0x1d, 0x61, 0xd3, 0xe8, 0x2c, 0x13, 0xc4, 0x83, 0x0b, 0x81,
+	0x18, 0x9f, 0xa2, 0x56, 0x26, 0x35, 0xf9, 0x14, 0x28, 0x1b, 0xe2, 0x2f, 0x50, 0x2b, 0x4a, 0x33,
+	0xf2, 0xcc, 0x73, 0xe6, 0xc3, 0x6f, 0x1f, 0x2f, 0xaa, 0x79, 0x36, 0xc6, 0x41, 0xad, 0x61, 0xf6,
+	0xb7, 0x83, 0x4e, 0xd6, 0xc7, 0x97, 0x4a, 0x6e, 0x45, 0x94, 0x6b, 0x66, 0x84, 0x92, 0xf7, 0xb4,
+	0xf9, 0x3f, 0x2d, 0xbd, 0x53, 0xf8, 0xf4, 0xdf, 0x85, 0x3f, 0x46, 0x9d, 0x54, 0x1d, 0xb8, 0x26,
+	0x4f, 0x60, 0x5a, 0x05, 0xc0, 0x2b, 0x34, 0x4d, 0x55, 0xcc, 0xb4, 0xf8, 0x0d, 0x92, 0xfb, 0x42,
+	0xbe, 0xe1, 0x3a, 0x13, 0x4a, 0x42, 0xe7, 0x7d, 0x3a, 0x69, 0xaa, 0x57, 0x95, 0x88, 0x97, 0xe8,
+	0x51, 0xfd, 0x65, 0x3f, 0xe4, 0x6f, 0x04, 0xe8, 0x70, 0x29, 0x23, 0x8a, 0x6b, 0xe9, 0xfb, 0x4a,
+	0x99, 0xfd, 0xde, 0x41, 0xdd, 0xd7, 0x86, 0x99, 0x3c, 0x7b, 0xb7, 0x3f, 0xe7, 0xbf, 0xc6, 0xe8,
+	0x36, 0xc6, 0xf8, 0x9e, 0x0d, 0x69, 0xbd, 0x77, 0x43, 0xc6, 0xc8, 0x15, 0xf6, 0xce, 0x5a, 0xf3,
+	0x01, 0x75, 0x45, 0x6a, 0x97, 0x34, 0x8d, 0x99, 0xd9, 0x2a, 0x9d, 0xc0, 0x5e, 0x0c, 0x68, 0x8d,
+	0xf1, 0x67, 0x68, 0x14, 0x28, 0x69, 0x58, 0x60, 0x7c, 0x9e, 0x30, 0x11, 0x93, 0x11, 0x18, 0x1e,
+	0x94, 0xe4, 0x0f, 0x96, 0xc3, 0x1e, 0x1a, 0x86, 0x3c, 0x0b, 0xb4, 0x48, 0xa1, 0xbf, 0x31, 0x58,
+	0x9a, 0x14, 0x9e, 0xa2, 0xae, 0xe6, 0x91, 0x15, 0x4f, 0x40, 0x2c, 0x91, 0xe5, 0x37, 0x5a, 0x84,
+	0x11, 0x27, 0xa7, 0x05, 0x5f, 0x20, 0xf0, 0xab, 0xdc, 0x70, 0x4d, 0x1e, 0x96, 0x7e, 0x40, 0xd5,
+	0xc6, 0x4c, 0xee, 0xd9, 0x18, 0xbb, 0x6b, 0xda, 0x18, 0x98, 0xce, 0x88, 0xda, 0x10, 0x3f, 0x42,
+	0x1d, 0x7d, 0xf4, 0x85, 0x84, 0x6d, 0x1b, 0xd1, 0xb6, 0x3e, 0x5e, 0xc9, 0x92, 0x54, 0x7b, 0xf2,
+	0x55, 0x45, 0x5e, 0xef, 0x2d, 0x69, 0xc0, 0x79, 0x51, 0x90, 0xa6, 0x74, 0x1a, 0x70, 0x7e, 0x5d,
+	0x91, 0xd7, 0x7b, 0xfc, 0x0c, 0xb9, 0x2a, 0x23, 0xcf, 0xa1, 0x98, 0xa7, 0x75, 0x31, 0xc5, 0x00,
+	0x17, 0xd7, 0xb6, 0x24, 0x2d, 0x82, 0x8c, 0xba, 0x2a, 0x3b, 0x7b, 0xeb, 0xa0, 0x41, 0xcd, 0xe0,
+	0x09, 0xea, 0xc6, 0x8a, 0x85, 0xfe, 0x25, 0x4c, 0xd6, 0xa5, 0x1d, 0x8b, 0x2e, 0x6b, 0x7a, 0x55,
+	0xbe, 0x32, 0x40, 0xaf, 0xf0, 0x13, 0xd4, 0x2b, 0xdc, 0xab, 0xf2, 0x81, 0x01, 0xd7, 0xe5, 0x0a,
+	0x7f, 0x8e, 0xc6, 0x41, 0x9a, 0xfb, 0x29, 0xd7, 0x01, 0x97, 0x86, 0x45, 0x1c, 0xfe, 0x08, 0x2e,
+	0x1d, 0x05, 0x69, 0xfe, 0xaa, 0x26, 0xf1, 0x05, 0x7a, 0x98, 0xf0, 0x44, 0xe9, 0x9b, 0xa6, 0x73,
+	0x02, 0xce, 0xd3, 0x42, 0x68, 0x98, 0x3d, 0x34, 0x34, 0x3c, 0x49, 0xb9, 0x66, 0x26, 0xd7, 0x1c,
+	0x6e, 0xd0, 0xa5, 0x4d, 0xea, 0xbb, 0x17, 0x6f, 0x6f, 0xcf, 0x9d, 0x3f, 0x6f, 0xcf, 0x9d, 0xbf,
+	0x6e, 0xcf, 0x9d, 0x5f, 0x2e, 0x3e, 0xe0, 0xc5, 0xde, 0x74, 0xe1, 0xc9, 0x7d, 0xfe, 0x4f, 0x00,
+	0x00, 0x00, 0xff, 0xff, 0xc3, 0x51, 0x8b, 0xc4, 0xe7, 0x05, 0x00, 0x00,
 }

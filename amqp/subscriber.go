@@ -1,4 +1,4 @@
-// Copyright © 2016 The Things Network
+// Copyright © 2017 The Things Network
 // Use of this source code is governed by the MIT license that can be found in the LICENSE file.
 
 package amqp
@@ -20,9 +20,14 @@ var (
 type Subscriber interface {
 	ChannelClient
 
+	QueueDeclare() (string, error)
+	QueueBind(name, key string) error
+	QueueUnbind(name, key string) error
+
 	SubscribeDeviceUplink(appID, devID string, handler UplinkHandler) error
 	SubscribeAppUplink(appID string, handler UplinkHandler) error
 	SubscribeUplink(handler UplinkHandler) error
+	ConsumeUplink(queue string, handler UplinkHandler) error
 
 	SubscribeDeviceDownlink(appID, devID string, handler DownlinkHandler) error
 	SubscribeAppDownlink(appID string, handler DownlinkHandler) error
@@ -53,21 +58,83 @@ func (c *DefaultClient) NewSubscriber(exchange, name string, durable, autoDelete
 	}
 }
 
-func (s *DefaultSubscriber) subscribe(key string) (<-chan AMQP.Delivery, error) {
+// QueueDeclare declares the queue on the AMQP broker
+func (s *DefaultSubscriber) QueueDeclare() (string, error) {
 	queue, err := s.channel.QueueDeclare(s.name, s.durable, s.autoDelete, false, false, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to declare queue '%s' (%s)", s.name, err)
+		return "", fmt.Errorf("Failed to declare queue '%s' (%s)", s.name, err)
 	}
+	return queue.Name, nil
+}
 
-	err = s.channel.QueueBind(queue.Name, key, s.exchange, false, nil)
+// QueueBind binds the routing key to the specified queue
+func (s *DefaultSubscriber) QueueBind(name, key string) error {
+	err := s.channel.QueueBind(name, key, s.exchange, false, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to bind queue %s with key %s on exchange '%s' (%s)", queue.Name, key, s.exchange, err)
+		return fmt.Errorf("Failed to bind queue %s with key %s on exchange '%s' (%s)", name, key, s.exchange, err)
 	}
+	return nil
+}
 
-	err = s.channel.Qos(PrefetchCount, PrefetchSize, false)
+// QueueUnbind unbinds the routing key from the specified queue
+func (s *DefaultSubscriber) QueueUnbind(name, key string) error {
+	err := s.channel.QueueUnbind(name, key, s.exchange, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to set channel QoS (%s)", err)
+		return fmt.Errorf("Failed to unbind queue %s with key %s on exchange '%s' (%s)", name, key, s.exchange, err)
 	}
+	return nil
+}
 
-	return s.channel.Consume(queue.Name, "", false, false, false, false, nil)
+type consumer struct {
+	queue      string
+	deliveries chan AMQP.Delivery
+}
+
+func (c *consumer) use(channel *AMQP.Channel) error {
+	err := channel.Qos(PrefetchCount, PrefetchSize, false)
+	if err != nil {
+		return fmt.Errorf("Failed to set channel QoS (%s)", err)
+	}
+	deliveries, err := channel.Consume(c.queue, "", false, false, false, false, nil)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for delivery := range deliveries {
+			c.deliveries <- delivery
+		}
+	}()
+	return nil
+}
+
+func (c *consumer) close() {
+	if c.deliveries != nil {
+		close(c.deliveries)
+		c.deliveries = nil
+	}
+}
+
+func (s *DefaultSubscriber) consume(queue string) (<-chan AMQP.Delivery, error) {
+	deliveries := make(chan AMQP.Delivery)
+	c := &consumer{
+		queue:      queue,
+		deliveries: deliveries,
+	}
+	if err := c.use(s.channel); err != nil {
+		return nil, err
+	}
+	s.addUser(c)
+	return deliveries, nil
+}
+
+func (s *DefaultSubscriber) subscribe(key string) (<-chan AMQP.Delivery, error) {
+	queue, err := s.QueueDeclare()
+	if err != nil {
+		return nil, err
+	}
+	err = s.QueueBind(queue, key)
+	if err != nil {
+		return nil, err
+	}
+	return s.consume(queue)
 }
