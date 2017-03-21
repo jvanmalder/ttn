@@ -10,7 +10,7 @@ import (
 	"github.com/TheThingsNetwork/ttn/core/handler/device"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
-	"github.com/TheThingsNetwork/ttn/utils/pointer"
+	// "github.com/TheThingsNetwork/ttn/utils/pointer"
 	"github.com/brocaar/lorawan"
 )
 
@@ -122,15 +122,15 @@ func (h *handler) ConvertToLoRaWAN(ctx ttnlog.Interface, appDown *types.Downlink
 //		macPayload.FPort = &appDown.FPort
 //	}
 
-	if appDown.Confirmed {
-		phyPayload.MHDR.MType = lorawan.ConfirmedDataDown
-	}
-
-	if queue, err := h.devices.DownlinkQueue(dev.AppID, dev.DevID); err == nil {
-		if length, _ := queue.Length(); length > 0 {
-			macPayload.FHDR.FCtrl.FPending = true
-		}
-	}
+//	if appDown.Confirmed {
+//		phyPayload.MHDR.MType = lorawan.ConfirmedDataDown
+//	}
+//
+//	if queue, err := h.devices.DownlinkQueue(dev.AppID, dev.DevID); err == nil {
+//		if length, _ := queue.Length(); length > 0 {
+//			macPayload.FHDR.FCtrl.FPending = true
+//		}
+//	}
 
 	// Set Payload
 //	if len(appDown.PayloadRaw) > 0 {

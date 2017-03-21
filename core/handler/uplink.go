@@ -17,7 +17,13 @@ var ResponseDeadline = 100 * time.Millisecond
 
 func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err error) {
 	appID, devID := uplink.AppId, uplink.DevId
-//	location := dev.Location
+	
+	dev, err := h.devices.Get(appID, devID)
+	if err != nil {
+		return err
+	}
+	
+	location := dev.Location
 //	ctx := h.Ctx.WithFields(log.Fields{
 //		"AppID": appID,
 //		"Location": location,
@@ -43,11 +49,6 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 
 	uplink.Trace = uplink.Trace.WithEvent(trace.ReceiveEvent)
 
-	dev, err := h.devices.Get(appID, devID)
-	if err != nil {
-		return err
-	}
-	location := dev.Location
 	dev.StartUpdate()
 
 	// Build AppUplink

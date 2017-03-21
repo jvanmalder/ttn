@@ -117,7 +117,7 @@ func TestHandleDownlink(t *testing.T) {
 		AppEui: &appEUI,
 		DevEui: &devEUI,
 	})
-	a.So(err, ShouldBeNil) // ShouldNotBeNil)
+	a.So(err, ShouldNotBeNil)
 
 	h.devices.Set(&device.Device{
 		AppID: appID,
