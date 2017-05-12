@@ -17,9 +17,12 @@ var MQTTTimeout = 2 * time.Second
 // MQTTBufferSize indicates the size for uplink channel buffers
 var MQTTBufferSize = 10
 
-func (h *handler) HandleMQTT(username, password string, mqttBrokers ...string) error {
-	h.mqttClient = mqtt.NewClient(h.Ctx, "ttnhdl", username, password, mqttBrokers...)
-
+func (h *handler) HandleMQTT(username, password string, useTLS bool, mqttBrokers ...string) error {
+	if useTLS {
+		h.mqttClient = mqtt.NewClient(h.Ctx, "ttnhdl", username, password, mqttBrokers...)
+	} else {
+		h.mqttClient = mqtt.NewTLSClient(h.Ctx, "ttnhdl", username, password, nil, mqttBrokers...)
+	}
 	err := h.mqttClient.Connect()
 	if err != nil {
 		return err

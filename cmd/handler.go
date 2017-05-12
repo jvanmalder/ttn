@@ -76,6 +76,7 @@ var handlerCmd = &cobra.Command{
 			handler = handler.WithMQTT(
 				viper.GetString("handler.mqtt-username"),
 				viper.GetString("handler.mqtt-password"),
+				viper.GetBool("handler.mqtt-use-tls"),
 				viper.GetString("handler.mqtt-address"),
 			)
 

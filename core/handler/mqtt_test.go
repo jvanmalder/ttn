@@ -43,7 +43,7 @@ func TestHandleMQTT(t *testing.T) {
 	defer func() {
 		h.devices.Delete(appID, devID)
 	}()
-	err = h.HandleMQTT("", "", fmt.Sprintf("tcp://%s", host))
+	err = h.HandleMQTT("", "", false, fmt.Sprintf("tcp://%s", host))
 	a.So(err, ShouldBeNil)
 
 	c.PublishDownlink(types.DownlinkMessage{
