@@ -46,6 +46,7 @@ func (h *handler) ConvertFromLoRaWAN(ctx ttnlog.Interface, ttnUp *pb_broker.Dedu
 	}
 
 	// LoRaWAN: Decrypt
+	appUp.FPort = uint8(macPayload.FPort)
 	if macPayload.FPort > 0 {
 		appUp.PayloadRaw = ttnUp.Payload
 		// Check if the above still runs ok, otherwise just put macPayload.FRMPayload or macPayload.FRMPayload[0]
