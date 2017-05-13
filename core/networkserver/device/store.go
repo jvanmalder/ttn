@@ -16,7 +16,9 @@ import (
 
 // Store interface for Devices
 type Store interface {
+	Count() (int, error)
 	List(opts *storage.ListOptions) ([]*Device, error)
+	CountForAddress(devAddr types.DevAddr) (int, error)
 	ListForAddress(devAddr types.DevAddr) ([]*Device, error)
 	Get(appEUI types.AppEUI, devEUI types.DevEUI) (*Device, error)
 	Set(new *Device, properties ...string) (err error)
@@ -61,6 +63,18 @@ type RedisDeviceStore struct {
 	devAddrIndex *storage.RedisSetStore
 }
 
+func (s *RedisDeviceStore) key(appEUI types.AppEUI, devEUI types.DevEUI) string {
+	if devEUI.IsEmpty() {
+		return fmt.Sprintf("%s:_empty_", appEUI)
+	}
+	return fmt.Sprintf("%s:%s", appEUI, devEUI)
+}
+
+// Count all Devices
+func (s *RedisDeviceStore) Count() (int, error) {
+	return s.store.Count("")
+}
+
 // List all Devices
 func (s *RedisDeviceStore) List(opts *storage.ListOptions) ([]*Device, error) {
 	devicesI, err := s.store.List("", opts)
@@ -74,6 +88,11 @@ func (s *RedisDeviceStore) List(opts *storage.ListOptions) ([]*Device, error) {
 		}
 	}
 	return devices, nil
+}
+
+// CountForAddress counts all devices for a specific DevAddr
+func (s *RedisDeviceStore) CountForAddress(devAddr types.DevAddr) (int, error) {
+	return s.devAddrIndex.Count(devAddr.String())
 }
 
 // ListForAddress lists all devices for a specific DevAddr
@@ -100,7 +119,7 @@ func (s *RedisDeviceStore) ListForAddress(devAddr types.DevAddr) ([]*Device, err
 
 // Get a specific Device
 func (s *RedisDeviceStore) Get(appEUI types.AppEUI, devEUI types.DevEUI) (*Device, error) {
-	deviceI, err := s.store.Get(fmt.Sprintf("%s:%s", appEUI, devEUI))
+	deviceI, err := s.store.Get(s.key(appEUI, devEUI))
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +137,7 @@ func (s *RedisDeviceStore) Set(new *Device, properties ...string) (err error) {
 	if old != nil {
 		addrChanged = new.DevAddr != old.DevAddr || new.DevEUI != old.DevEUI || new.AppEUI != old.AppEUI
 		if addrChanged {
-			if err := s.devAddrIndex.Remove(old.DevAddr.String(), fmt.Sprintf("%s:%s", old.AppEUI, old.DevEUI)); err != nil {
+			if err := s.devAddrIndex.Remove(old.DevAddr.String(), s.key(old.AppEUI, old.DevEUI)); err != nil {
 				return err
 			}
 		}
@@ -126,7 +145,7 @@ func (s *RedisDeviceStore) Set(new *Device, properties ...string) (err error) {
 
 	now := time.Now()
 	new.UpdatedAt = now
-	key := fmt.Sprintf("%s:%s", new.AppEUI, new.DevEUI)
+	key := s.key(new.AppEUI, new.DevEUI)
 	if new.old == nil {
 		new.CreatedAt = now
 	}
@@ -146,7 +165,7 @@ func (s *RedisDeviceStore) Set(new *Device, properties ...string) (err error) {
 
 // Delete a Device
 func (s *RedisDeviceStore) Delete(appEUI types.AppEUI, devEUI types.DevEUI) error {
-	key := fmt.Sprintf("%s:%s", appEUI, devEUI)
+	key := s.key(appEUI, devEUI)
 
 	deviceI, err := s.store.GetFields(key, "dev_addr")
 	if err != nil {

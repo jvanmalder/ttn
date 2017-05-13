@@ -42,9 +42,9 @@ var devicesInfoCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		assertArgsLength(cmd, args, 1, 1)
 
-		devID := args[0]
-		if !api.ValidID(devID) {
-			ctx.Fatalf("Invalid Device ID") // TODO: Add link to wiki explaining device IDs
+		devID := strings.ToLower(args[0])
+		if err := api.NotEmptyAndValidID(devID, "Device ID"); err != nil {
+			ctx.Fatal(err.Error())
 		}
 
 		appID := util.GetAppID(ctx)
@@ -85,7 +85,11 @@ var devicesInfoCmd = &cobra.Command{
 			fmt.Println("    LoRaWAN Info:")
 			fmt.Println()
 			fmt.Printf("     AppEUI: %s\n", formatBytes(lorawan.AppEui, byteFormat))
-			fmt.Printf("     DevEUI: %s\n", formatBytes(lorawan.DevEui, byteFormat))
+			devEUI := formatBytes(lorawan.DevEui, byteFormat)
+			if lorawan.DevEui.IsEmpty() {
+				devEUI = "register on join"
+			}
+			fmt.Printf("     DevEUI: %s\n", devEUI)
 			fmt.Printf("    DevAddr: %s\n", formatBytes(lorawan.DevAddr, byteFormat))
 			fmt.Printf("     AppKey: %s\n", formatBytes(lorawan.AppKey, byteFormat))
 			fmt.Printf("    AppSKey: %s\n", formatBytes(lorawan.AppSKey, byteFormat))

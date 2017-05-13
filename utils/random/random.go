@@ -27,14 +27,47 @@ func New() *TTNRandom {
 
 var global = New()
 
+const validIDChars = "abcdefghijklmnopqrstuvwxyz1234567890"
+
+func (r *TTNRandom) randomChar(alphabet string) byte { return alphabet[r.Intn(len(alphabet))] }
+
+func (r *TTNRandom) randomChars(alphabet string, chars int) []byte {
+	o := make([]byte, chars)
+	for n := 0; n < chars; n++ {
+		o[n] = r.randomChar(alphabet)
+	}
+	return o
+}
+
+func (r *TTNRandom) id(length int) string {
+	o := r.randomChars(validIDChars, length)
+	for n := 0; n < length/8; n++ { // max 1 out of 8 will be a dash/underscore
+		l := 1 + r.Intn(length-2)
+		if o[l-1] != '_' && o[l-1] != '-' && o[l+1] != '_' && o[l+1] != '-' {
+			o[l] = r.randomChar("-_")
+		}
+	}
+	return string(o)
+}
+
 // ID returns randomly generated ID
 func (r *TTNRandom) ID() string {
-	return r.Interface.String(2 + r.Interface.Intn(61))
+	return r.id(2 + r.Intn(35))
+}
+
+// AppID returns randomly generated AppID
+func (r *TTNRandom) AppID() string {
+	return r.ID()
+}
+
+// DevID returns randomly generated DevID
+func (r *TTNRandom) DevID() string {
+	return r.ID()
 }
 
 // Bool return randomly generated bool value
 func (r *TTNRandom) Bool() bool {
-	return r.Interface.Intn(1) == 0
+	return r.Interface.Intn(2) == 0
 }
 
 // Rssi generates RSSI signal between -120 < rssi < 0
@@ -174,6 +207,12 @@ func Bool() bool {
 
 func ID() string {
 	return global.ID()
+}
+func AppID() string {
+	return global.AppID()
+}
+func DevID() string {
+	return global.DevID()
 }
 
 func DevNonce() types.DevNonce {

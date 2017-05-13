@@ -14,7 +14,7 @@ func (m *DeviceIdentifier) Validate() error {
 	if m.AppEui == nil || m.AppEui.IsEmpty() {
 		return errors.NewErrInvalidArgument("AppEui", "can not be empty")
 	}
-	if m.DevEui == nil || m.DevEui.IsEmpty() {
+	if m.DevEui == nil {
 		return errors.NewErrInvalidArgument("DevEui", "can not be empty")
 	}
 	return nil
@@ -25,7 +25,7 @@ func (m *Device) Validate() error {
 	if m.AppEui == nil || m.AppEui.IsEmpty() {
 		return errors.NewErrInvalidArgument("AppEui", "can not be empty")
 	}
-	if m.DevEui == nil || m.DevEui.IsEmpty() {
+	if m.DevEui == nil {
 		return errors.NewErrInvalidArgument("DevEui", "can not be empty")
 	}
 	if err := api.NotEmptyAndValidID(m.AppId, "AppId"); err != nil {
@@ -99,7 +99,7 @@ func (m *ActivationMetadata) Validate() error {
 // Validate implements the api.Validator interface
 func (m *Message) Validate() error {
 	if m.Major != Major_LORAWAN_R1 {
-		return errors.NewErrInvalidArgument("Major", "invalid value "+Major_LORAWAN_R1.String())
+		return errors.NewErrInvalidArgument("Major", "invalid value "+m.Major.String())
 	}
 	switch m.MType {
 	case MType_JOIN_REQUEST:

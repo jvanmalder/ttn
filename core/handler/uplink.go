@@ -33,7 +33,7 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			h.mqttEvent <- &types.DeviceEvent{
+			h.qEvent <- &types.DeviceEvent{
 				AppID: appID,
 				Location: location,
 				DevID: devID,
@@ -41,8 +41,12 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 				Data:  types.ErrorEventData{Error: err.Error()},
 			}
 			ctx.WithError(err).Warn("Could not handle uplink")
+			uplink.Trace = uplink.Trace.WithEvent(trace.DropEvent, "reason", err)
 		} else {
 			ctx.WithField("Duration", time.Now().Sub(start)).Info("Handled uplink")
+		}
+		if uplink != nil && h.monitorStream != nil {
+			h.monitorStream.Send(uplink)
 		}
 	}()
 	h.status.uplink.Mark(1)
@@ -86,10 +90,7 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 	dev.StartUpdate()
 
 	// Publish Uplink
-	h.mqttUp <- appUplink
-	if h.amqpEnabled {
-		h.amqpUp <- appUplink
-	}
+	h.qUp <- appUplink
 
 	noDownlinkErrEvent := &types.DeviceEvent{
 		AppID: appID,
@@ -114,7 +115,7 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 				}
 				dev.CurrentDownlink = next
 			} else {
-				h.mqttEvent <- noDownlinkErrEvent
+				h.qEvent <- noDownlinkErrEvent
 				return nil
 			}
 		}
@@ -122,7 +123,7 @@ func (h *handler) HandleUplink(uplink *pb_broker.DeduplicatedUplinkMessage) (err
 
 	if uplink.ResponseTemplate == nil {
 		if dev.CurrentDownlink != nil {
-			h.mqttEvent <- noDownlinkErrEvent
+			h.qEvent <- noDownlinkErrEvent
 		}
 		return nil
 	}

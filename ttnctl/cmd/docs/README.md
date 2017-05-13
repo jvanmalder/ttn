@@ -5,6 +5,7 @@ Control The Things Network from the command line.
 **Options**
 
 ```
+      --allow-insecure             Allow insecure fallback if TLS unavailable
       --auth-server string         The address of the OAuth 2.0 server (default "https://account.thethingsnetwork.org")
       --config string              config file (default is $HOME/.ttnctl.yml)
       --data string                directory where ttnctl stores data (default is $HOME/.ttnctl)
@@ -125,6 +126,12 @@ ttnctl pf set can be used to get or set payload functions of an application.
 The functions are read from the supplied file or from STDIN.
 
 **Usage:** `ttnctl applications pf set [decoder/converter/validator/encoder] [file.js]`
+
+**Options**
+
+```
+      --skip-test   skip payload function test
+```
 
 **Example**
 
@@ -342,6 +349,12 @@ $ ttnctl devices register test
   INFO Registered device                        AppEUI=70B3D57EF0000024 AppID=test AppKey=EBD2E2810A4307263FE5EF78E2EF589D DevEUI=0001D544B2936FCE DevID=test
 ```
 
+#### ttnctl devices register on-join
+
+ttnctl devices register on-join can be used to register a device template for on-join registrations.
+
+**Usage:** `ttnctl devices register on-join [Device ID Prefix] [AppKey]`
+
 ### ttnctl devices set
 
 ttnctl devices set can be used to set properties of a device.
@@ -401,9 +414,10 @@ ttnctl downlink can be used to send a downlink message to a device.
 **Options**
 
 ```
-      --confirmed   Confirmed downlink
-      --fport int   FPort for downlink (default 1)
-      --json        Provide the payload as JSON
+      --access-key string   The access key to use
+      --confirmed           Confirmed downlink
+      --fport int           FPort for downlink (default 1)
+      --json                Provide the payload as JSON
 ```
 
 **Example**
@@ -525,6 +539,12 @@ ttnctl selfupdate updates the current ttnctl to the latest version
 ttnctl subscribe can be used to subscribe to events for this application.
 
 **Usage:** `ttnctl subscribe`
+
+**Options**
+
+```
+      --access-key string   The access key to use
+```
 
 ## ttnctl user
 

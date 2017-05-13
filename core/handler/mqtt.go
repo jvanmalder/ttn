@@ -46,12 +46,13 @@ func (h *handler) HandleMQTT(username, password string, useTLS bool, mqttBrokers
 
 	go func() {
 		for up := range h.mqttUp {
-			ctx.WithFields(ttnlog.Fields{
+			ctx := ctx.WithFields(ttnlog.Fields{
 				"DevID": up.DevID,
 				"AppID": up.AppID,
-			}).Debug("Publish Uplink")
+			})
+			ctx.Debug("Publish Uplink")
 			upToken := h.mqttClient.PublishUplink(*up)
-			go func() {
+			go func(ctx ttnlog.Interface) {
 				if upToken.WaitTimeout(MQTTTimeout) {
 					if upToken.Error() != nil {
 						ctx.WithError(upToken.Error()).Warn("Could not publish Uplink")
@@ -59,10 +60,10 @@ func (h *handler) HandleMQTT(username, password string, useTLS bool, mqttBrokers
 				} else {
 					ctx.Warn("Uplink publish timeout")
 				}
-			}()
+			}(ctx)
 			if len(up.PayloadFields) > 0 {
 				fieldsToken := h.mqttClient.PublishUplinkFields(up.AppID, up.Location, up.DevID, up.PayloadFields)
-				go func() {
+				go func(ctx ttnlog.Interface) {
 					if fieldsToken.WaitTimeout(MQTTTimeout) {
 						if fieldsToken.Error() != nil {
 							ctx.WithError(fieldsToken.Error()).Warn("Could not publish Uplink Fields")
@@ -70,18 +71,19 @@ func (h *handler) HandleMQTT(username, password string, useTLS bool, mqttBrokers
 					} else {
 						ctx.Warn("Uplink Fields publish timeout")
 					}
-				}()
+				}(ctx)
 			}
 		}
 	}()
 
 	go func() {
 		for event := range h.mqttEvent {
-			h.Ctx.WithFields(ttnlog.Fields{
+			ctx := ctx.WithFields(ttnlog.Fields{
 				"DevID": event.DevID,
 				"AppID": event.AppID,
 				"Event": event.Event,
-			}).Debug("Publish Event")
+			})
+			ctx.Debug("Publish Event")
 			var token mqtt.Token
 			if event.DevID == "" {
 				token = h.mqttClient.PublishAppEvent(event.AppID, event.Event, event.Data)
@@ -91,10 +93,10 @@ func (h *handler) HandleMQTT(username, password string, useTLS bool, mqttBrokers
 			go func() {
 				if token.WaitTimeout(MQTTTimeout) {
 					if token.Error() != nil {
-						h.Ctx.WithError(token.Error()).Warn("Could not publish Event")
+						ctx.WithError(token.Error()).Warn("Could not publish Event")
 					}
 				} else {
-					h.Ctx.Warn("Event publish timeout")
+					ctx.Warn("Event publish timeout")
 				}
 			}()
 		}

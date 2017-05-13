@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/TheThingsNetwork/ttn/api"
 	"github.com/TheThingsNetwork/ttn/ttnctl/util"
@@ -18,9 +19,9 @@ var gatewaysInfoCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		assertArgsLength(cmd, args, 1, 1)
 
-		gatewayID := args[0]
-		if !api.ValidID(gatewayID) {
-			ctx.Fatal("Invalid Gateway ID")
+		gatewayID := strings.ToLower(args[0])
+		if err := api.NotEmptyAndValidID(gatewayID, "Gateway ID"); err != nil {
+			ctx.Fatal(err.Error())
 		}
 
 		account := util.GetAccount(ctx)
@@ -33,23 +34,31 @@ var gatewaysInfoCmd = &cobra.Command{
 		ctx.Info("Found gateway")
 
 		fmt.Println()
-		fmt.Printf("Gateway ID:     %s\n", gateway.ID)
-		fmt.Printf("Activated:      %v\n", gateway.Activated)
-		fmt.Printf("Frequency Plan: %s\n", gateway.FrequencyPlan)
-		locationAccess := "private"
-		if gateway.LocationPublic {
-			locationAccess = "public"
+		printKV("Gateway ID", gateway.ID)
+		printKV("Frequency Plan", gateway.FrequencyPlan)
+		if gateway.Router != nil {
+			printKV("Router", gateway.Router.ID)
 		}
-		if gateway.Location != nil {
-			fmt.Printf("Location Info  : (%f, %f) (%s) \n", gateway.Location.Latitude, gateway.Location.Longitude, locationAccess)
+		printBool("Auto Update", gateway.AutoUpdate, "on", "off")
+		printKV("Owner", gateway.Owner.Username)
+		printBool("Owner Public", gateway.OwnerPublic, "yes", "no")
+		if gateway.AntennaLocation != nil {
+			printKV("Location", fmt.Sprintf("(%f, %f, %d)", gateway.AntennaLocation.Latitude, gateway.AntennaLocation.Longitude, gateway.AntennaLocation.Altitude))
 		}
-		if gateway.StatusPublic {
-			fmt.Printf("Status Info:    public (see ttnctl gateways status %s)\n", gatewayID)
-		} else {
-			fmt.Print("Status Info:    private\n")
-		}
+		printBool("Location Public", gateway.LocationPublic, "yes", "no")
+		printBool("Status Public", gateway.StatusPublic, "yes", "no")
+
+		fmt.Println()
+
+		printKV("Brand", gateway.Attributes.Brand)
+		printKV("Model", gateway.Attributes.Model)
+		printKV("Placement", gateway.Attributes.Placement)
+		printKV("AntennaType", gateway.Attributes.AntennaType)
+		printKV("AntennaModel", gateway.Attributes.AntennaModel)
+		printKV("Description", gateway.Attributes.Description)
+
 		if gateway.Key != "" {
-			fmt.Printf("Access Key    : %s\n", gateway.Key)
+			printKV("Access Key", gateway.Key)
 		}
 
 		fmt.Println()

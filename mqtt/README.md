@@ -3,6 +3,7 @@
 * Host: `<Region>.thethings.network`, where `<Region>` is last part of the handler you registered your application to, e.g. `eu`.
 * Port: `1883` or `8883` for TLS
 * PEM encoded CA certificate for TLS: [mqtt-ca.pem](https://console.thethingsnetwork.org/mqtt-ca.pem)
+  - Note: When this certificate expires, we will migrate to Let's Encrypt certificates. Therefore you might want to include the [Let's Encrypt Roots](https://letsencrypt.org/certificates/) in your certificate chain.
 * Username: Application ID
 * Password: Application Access Key
 
@@ -178,6 +179,20 @@ token := client.PublishDownlink(types.DownlinkMessage{
 token.Wait()
 if err := token.Error(); err != nil {
   ctx.WithError(err).Fatal("Could not publish")
+}
+```
+
+### Downlink Scheduling
+
+By default, the downlink will _replace_ the currently scheduled downlink, if any. It is also possible to schedule the
+downlink as the _first_ or _last_ item in a the downlink queue.
+
+```js
+{
+  "port": 1,
+  "confirmed": false,
+  // payload_raw or payload_fields
+  "schedule": "replace", // allowed values: "replace" (default), "first", "last"
 }
 ```
 

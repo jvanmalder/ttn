@@ -20,7 +20,9 @@ import (
 	"github.com/TheThingsNetwork/go-account-lib/keys"
 	"github.com/TheThingsNetwork/go-account-lib/tokenkey"
 	"github.com/TheThingsNetwork/ttn/api"
+	api_auth "github.com/TheThingsNetwork/ttn/api/auth"
 	pb_discovery "github.com/TheThingsNetwork/ttn/api/discovery"
+	"github.com/TheThingsNetwork/ttn/api/pool"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
 	"github.com/TheThingsNetwork/ttn/utils/security"
 	jwt "github.com/dgrijalva/jwt-go"
@@ -33,6 +35,7 @@ func (c *Component) InitAuth() error {
 		c.initAuthServers,
 		c.initKeyPair,
 		c.initRoots,
+		c.initBgCtx,
 	}
 	if c.Config.UseTLS {
 		inits = append(inits, c.initTLS)
@@ -127,6 +130,13 @@ func (c *Component) initKeyPair() error {
 	pubPEM, _ := security.PublicPEM(priv)
 	c.Identity.PublicKey = string(pubPEM)
 
+	if c.Pool != nil {
+		c.Pool.AddDialOption(api_auth.WithTokenFunc(func(_ string) string {
+			token, _ := c.BuildJWT()
+			return token
+		}).DialOption())
+	}
+
 	return nil
 }
 
@@ -153,7 +163,7 @@ func (c *Component) initRoots() error {
 	if err != nil {
 		return nil
 	}
-	if !api.RootCAs.AppendCertsFromPEM(cert) {
+	if !pool.RootCAs.AppendCertsFromPEM(cert) {
 		return fmt.Errorf("Could not add root certificates from %s", path)
 	}
 	return nil
@@ -165,7 +175,10 @@ func (c *Component) initBgCtx() error {
 		ctx = api.ContextWithID(ctx, c.Identity.Id)
 		ctx = api.ContextWithServiceInfo(ctx, c.Identity.ServiceName, c.Identity.ServiceVersion, c.Identity.NetAddress)
 	}
-	c.bgCtx = ctx
+	c.Context = ctx
+	if c.Pool != nil {
+		c.Pool.SetContext(c.Context)
+	}
 	return nil
 }
 
@@ -186,10 +199,10 @@ func (c *Component) BuildJWT() (string, error) {
 
 // GetContext returns a context for outgoing RPC request. If token is "", this function will generate a short lived token from the component
 func (c *Component) GetContext(token string) context.Context {
-	if c.bgCtx == nil {
+	if c.Context == nil {
 		c.initBgCtx()
 	}
-	ctx := c.bgCtx
+	ctx := c.Context
 	if token == "" && c.Identity != nil {
 		token, _ = c.BuildJWT()
 	}
@@ -212,7 +225,7 @@ func (c *Component) ExchangeAppKeyForToken(appID, key string) (string, error) {
 	}
 	issuer, ok := c.Config.AuthServers[issuerID]
 	if !ok {
-		return "", fmt.Errorf("Auth server %s not registered", issuer)
+		return "", fmt.Errorf("Auth server \"%s\" not registered", issuerID)
 	}
 
 	token, err := getTokenFromCache(oauthCache, appID, key)

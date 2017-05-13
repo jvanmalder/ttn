@@ -9,12 +9,13 @@ import (
 	"github.com/TheThingsNetwork/ttn/amqp"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
 	pb "github.com/TheThingsNetwork/ttn/api/handler"
+	pb_monitor "github.com/TheThingsNetwork/ttn/api/monitor"
+	pb_lorawan "github.com/TheThingsNetwork/ttn/api/protocol/lorawan"
 	"github.com/TheThingsNetwork/ttn/core/component"
 	"github.com/TheThingsNetwork/ttn/core/handler/application"
 	"github.com/TheThingsNetwork/ttn/core/handler/device"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/mqtt"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"gopkg.in/redis.v5"
 )
@@ -39,6 +40,8 @@ func NewRedisHandler(client *redis.Client, ttnBrokerID string) Handler {
 		devices:      device.NewRedisDeviceStore(client, "handler"),
 		applications: application.NewRedisApplicationStore(client, "handler"),
 		ttnBrokerID:  ttnBrokerID,
+		qUp:          make(chan *types.UplinkMessage),
+		qEvent:       make(chan *types.DeviceEvent),
 	}
 }
 
@@ -52,6 +55,7 @@ type handler struct {
 	ttnBrokerConn    *grpc.ClientConn
 	ttnBroker        pb_broker.BrokerClient
 	ttnBrokerManager pb_broker.BrokerManagerClient
+	ttnDeviceManager pb_lorawan.DeviceManagerClient
 
 	downlink chan *pb_broker.DownlinkMessage
 
@@ -71,8 +75,13 @@ type handler struct {
 	amqpExchange string
 	amqpEnabled  bool
 	amqpUp       chan *types.UplinkMessage
+	amqpEvent    chan *types.DeviceEvent
 
-	status *status
+	qUp    chan *types.UplinkMessage
+	qEvent chan *types.DeviceEvent
+
+	status        *status
+	monitorStream pb_monitor.GenericStream
 }
 
 var (
@@ -129,12 +138,36 @@ func (h *handler) Init(c *component.Component) error {
 		}
 	}
 
+	go func() {
+		for {
+			select {
+			case up := <-h.qUp:
+				if h.mqttEnabled {
+					h.mqttUp <- up
+				}
+				if h.amqpEnabled {
+					h.amqpUp <- up
+				}
+			case event := <-h.qEvent:
+				if h.mqttEnabled {
+					h.mqttEvent <- event
+				}
+				if h.amqpEnabled {
+					h.amqpEvent <- event
+				}
+			}
+		}
+	}()
+
 	err = h.associateBroker()
 	if err != nil {
 		return err
 	}
 
 	h.Component.SetStatus(component.StatusHealthy)
+	if h.Component.Monitor != nil {
+		h.monitorStream = h.Component.Monitor.NewHandlerStreams(h.Identity.Id, h.AccessToken)
+	}
 
 	return nil
 }
@@ -153,31 +186,32 @@ func (h *handler) associateBroker() error {
 	if err != nil {
 		return err
 	}
-	conn, err := broker.Dial()
+	conn, err := broker.Dial(h.Pool)
 	if err != nil {
 		return err
 	}
 	h.ttnBrokerConn = conn
 	h.ttnBroker = pb_broker.NewBrokerClient(conn)
 	h.ttnBrokerManager = pb_broker.NewBrokerManagerClient(conn)
+	h.ttnDeviceManager = pb_lorawan.NewDeviceManagerClient(conn)
 
 	h.downlink = make(chan *pb_broker.DownlinkMessage)
 
-	contextFunc := func() context.Context { return h.GetContext("") }
-
-	upStream := pb_broker.NewMonitoredHandlerSubscribeStream(h.ttnBroker, contextFunc)
-	downStream := pb_broker.NewMonitoredHandlerPublishStream(h.ttnBroker, contextFunc)
-
-	go func() {
-		for message := range upStream.Channel() {
-			go h.HandleUplink(message)
-		}
-	}()
+	config := pb_broker.DefaultClientConfig
+	config.BackgroundContext = h.Component.Context
+	cli := pb_broker.NewClient(config)
+	cli.AddServer(h.ttnBrokerID, h.ttnBrokerConn)
+	association := cli.NewHandlerStreams(h.Identity.Id, "")
 
 	go func() {
-		for message := range h.downlink {
-			if err := downStream.Send(message); err != nil {
-				h.Ctx.WithError(err).Warn("Could not send downlink to Broker")
+		for {
+			select {
+			case message := <-h.downlink:
+				association.Downlink(message)
+			case message, ok := <-association.Uplink():
+				if ok {
+					go h.HandleUplink(message)
+				}
 			}
 		}
 	}()

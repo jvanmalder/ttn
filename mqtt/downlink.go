@@ -22,7 +22,7 @@ func (c *DefaultClient) PublishDownlink(dataDown types.DownlinkMessage) Token {
 	dataDown.Location = ""
 	msg, err := json.Marshal(dataDown)
 	if err != nil {
-		return &simpleToken{fmt.Errorf("Unable to marshal the message payload")}
+		return &simpleToken{fmt.Errorf("Unable to marshal the message payload: %s", err)}
 	}
 	return c.publish(topic.String(), msg)
 }

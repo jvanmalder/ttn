@@ -6,68 +6,48 @@ package handler
 import (
 	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
+	pb_lorawan "github.com/TheThingsNetwork/ttn/api/protocol/lorawan"
 	"github.com/TheThingsNetwork/ttn/api/trace"
 	"github.com/TheThingsNetwork/ttn/core/handler/device"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
-	// "github.com/TheThingsNetwork/ttn/utils/pointer"
-	"github.com/brocaar/lorawan"
 )
 
-func (h *handler) ConvertFromLoRaWAN(ctx ttnlog.Interface, ttnUp *pb_broker.DeduplicatedUplinkMessage, appUp *types.UplinkMessage, dev *device.Device) error {
-	// Check for LoRaWAN
-	if lorawan := ttnUp.ProtocolMetadata.GetLorawan(); lorawan == nil {
-		return errors.NewErrInvalidArgument("Uplink", "does not contain LoRaWAN metadata")
-	}
-
-	// LoRaWAN: Unmarshal Uplink
-	var phyPayload lorawan.PHYPayload
-	err := phyPayload.UnmarshalBinary(ttnUp.Payload)
-	if err != nil {
+func (h *handler) ConvertFromLoRaWAN(ctx ttnlog.Interface, ttnUp *pb_broker.DeduplicatedUplinkMessage, appUp *types.UplinkMessage, dev *device.Device) (err error) {
+	if err := ttnUp.UnmarshalPayload(); err != nil {
 		return err
 	}
-	macPayload, ok := phyPayload.MACPayload.(*lorawan.MACPayload)
-	if !ok {
+	if ttnUp.GetMessage().GetLorawan() == nil {
+		return errors.NewErrInvalidArgument("Uplink", "does not contain a LoRaWAN payload")
+	}
+
+	phyPayload := ttnUp.GetMessage().GetLorawan()
+	macPayload := phyPayload.GetMacPayload()
+	if macPayload == nil {
 		return errors.NewErrInvalidArgument("Uplink", "does not contain a MAC payload")
 	}
 
-	// LoRaWAN: Validate MIC
-	macPayload.FHDR.FCnt = ttnUp.ProtocolMetadata.GetLorawan().FCnt
 	ttnUp.Trace = ttnUp.Trace.WithEvent(trace.CheckMICEvent)
-	ok, err = phyPayload.ValidateMIC(lorawan.AES128Key(dev.NwkSKey))
+	err = phyPayload.ValidateMIC(dev.NwkSKey)
 	if err != nil {
 		return err
 	}
-	if !ok {
-		return errors.NewErrNotFound("device that validates MIC")
-	}
 
 	appUp.HardwareSerial = dev.DevEUI.String()
-	appUp.FCnt = macPayload.FHDR.FCnt
-	ctx = ctx.WithField("FCnt", appUp.FCnt)
+
+	appUp.FCnt = macPayload.FCnt
 	if dev.FCntUp == appUp.FCnt {
 		appUp.IsRetry = true
 	}
-	if phyPayload.MHDR.MType == lorawan.ConfirmedDataUp {
+	dev.FCntUp = appUp.FCnt
+	
+	if phyPayload.MType == pb_lorawan.MType_CONFIRMED_UP {
 		appUp.Confirmed = true
 	}
-	dev.FCntUp = appUp.FCnt
 
 	// LoRaWAN: Decrypt
-	if macPayload.FPort != nil {
-		appUp.FPort = *macPayload.FPort
-		if *macPayload.FPort != 0 && len(macPayload.FRMPayload) == 1 {
-			ctx = ctx.WithField("FCnt", appUp.FPort)
-			// if err := phyPayload.DecryptFRMPayload(lorawan.AES128Key(dev.AppSKey)); err != nil {
-			//	return errors.NewErrInternal("Could not decrypt payload")
-			//}
-			_, ok := macPayload.FRMPayload[0].(*lorawan.DataPayload)
-			if !ok {
-				return errors.NewErrInvalidArgument("Uplink FRMPayload", "must be of type *lorawan.DataPayload")
-			}
-			// appUp.PayloadRaw = payload.Bytes
-			appUp.PayloadRaw = ttnUp.Payload
-		}
+	if macPayload.FPort > 0 {
+		appUp.PayloadRaw = ttnUp.Payload
 		// Check if the above still runs ok, otherwise just put macPayload.FRMPayload or macPayload.FRMPayload[0]
 		// in appUp.PayloadRaw
 	}
@@ -76,9 +56,9 @@ func (h *handler) ConvertFromLoRaWAN(ctx ttnlog.Interface, ttnUp *pb_broker.Dedu
 		// We have a downlink pending
 		if dev.CurrentDownlink.Confirmed {
 			// If it's confirmed, we can only unset it if we receive an ack.
-			if macPayload.FHDR.FCtrl.ACK {
+			if macPayload.Ack {
 				// Send event over MQTT
-				h.mqttEvent <- &types.DeviceEvent{
+				h.qEvent <- &types.DeviceEvent{
 					AppID: appUp.AppID,
 					DevID: appUp.DevID,
 					Event: types.DownlinkAckEvent,

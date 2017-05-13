@@ -11,6 +11,9 @@ import (
 	"github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/api/broker"
 	"github.com/TheThingsNetwork/ttn/api/gateway"
+	"github.com/TheThingsNetwork/ttn/api/handler"
+	"github.com/TheThingsNetwork/ttn/api/networkserver"
+	"github.com/TheThingsNetwork/ttn/api/pool"
 	"github.com/TheThingsNetwork/ttn/api/router"
 	"github.com/htdvisser/grpc-testing/test"
 	. "github.com/smartystreets/assertions"
@@ -40,7 +43,9 @@ func TestMonitor(t *testing.T) {
 
 	cli.AddServer("tls-without-tls", lis.Addr().String())
 
+	time.Sleep(50 * time.Millisecond)
 	testLogger.Print(t)
+	pool.Global.Close(lis.Addr().String())
 
 	cli.AddServer("test", lis.Addr().String())
 	time.Sleep(waitTime)
@@ -56,6 +61,7 @@ func TestMonitor(t *testing.T) {
 	time.Sleep(waitTime)
 	for i := 0; i < 20; i++ {
 		gtw.Send(&router.UplinkMessage{})
+		gtw.Send(&router.DeviceActivationRequest{})
 		gtw.Send(&router.DownlinkMessage{})
 		gtw.Send(&gateway.Status{})
 		time.Sleep(time.Millisecond)
@@ -64,24 +70,69 @@ func TestMonitor(t *testing.T) {
 	gtw.Close()
 	time.Sleep(waitTime)
 
-	a.So(server.metrics.uplinkMessages, ShouldEqual, 20)
+	a.So(server.metrics.uplinkMessages, ShouldEqual, 40)
 	a.So(server.metrics.downlinkMessages, ShouldEqual, 20)
 	a.So(server.metrics.gatewayStatuses, ShouldEqual, 20)
+
+	testLogger.Print(t)
+
+	rtr := cli.NewRouterStreams("test", "token")
+	time.Sleep(waitTime)
+	for i := 0; i < 20; i++ {
+		rtr.Send(&router.Status{})
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(waitTime)
+	rtr.Close()
+	time.Sleep(waitTime)
+
+	a.So(server.metrics.routerStatuses, ShouldEqual, 20)
 
 	testLogger.Print(t)
 
 	brk := cli.NewBrokerStreams("test", "token")
 	time.Sleep(waitTime)
 	brk.Send(&broker.DeduplicatedUplinkMessage{})
+	brk.Send(&broker.DeduplicatedDeviceActivationRequest{})
 	brk.Send(&broker.DownlinkMessage{})
+	brk.Send(&broker.Status{})
 	time.Sleep(waitTime)
 	brk.Close()
 	time.Sleep(waitTime)
 
-	a.So(server.metrics.brokerUplinkMessages, ShouldEqual, 1)
+	a.So(server.metrics.brokerUplinkMessages, ShouldEqual, 2)
 	a.So(server.metrics.brokerDownlinkMessages, ShouldEqual, 1)
 
 	testLogger.Print(t)
+
+	ns := cli.NewNetworkServerStreams("test", "token")
+	time.Sleep(waitTime)
+	for i := 0; i < 20; i++ {
+		ns.Send(&networkserver.Status{})
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(waitTime)
+	ns.Close()
+	time.Sleep(waitTime)
+
+	a.So(server.metrics.routerStatuses, ShouldEqual, 20)
+
+	testLogger.Print(t)
+
+	hdl := cli.NewHandlerStreams("test", "token")
+	time.Sleep(waitTime)
+	hdl.Send(&broker.DeduplicatedUplinkMessage{})
+	hdl.Send(&broker.DeduplicatedDeviceActivationRequest{})
+	hdl.Send(&broker.DownlinkMessage{})
+	hdl.Send(&handler.Status{})
+	time.Sleep(waitTime)
+	hdl.Close()
+	time.Sleep(waitTime)
+
+	a.So(server.metrics.handlerUplinkMessages, ShouldEqual, 2)
+	a.So(server.metrics.handlerDownlinkMessages, ShouldEqual, 1)
+
+	server.metrics.brokerUplinkMessages = 0
 
 	cli.AddConn("test2", cli.serverConns[1].conn)
 
@@ -92,6 +143,7 @@ func TestMonitor(t *testing.T) {
 	brk.Close()
 	time.Sleep(waitTime)
 
-	a.So(server.metrics.brokerUplinkMessages, ShouldEqual, 3)
+	a.So(server.metrics.brokerUplinkMessages, ShouldEqual, 2)
 
+	testLogger.Print(t)
 }

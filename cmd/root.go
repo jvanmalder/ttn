@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/go-utils/log/apex"
 	"github.com/TheThingsNetwork/go-utils/log/grpc"
+	"github.com/TheThingsNetwork/ttn/api"
 	esHandler "github.com/TheThingsNetwork/ttn/utils/elasticsearch/handler"
 	"github.com/apex/log"
 	jsonHandler "github.com/apex/log/handlers/json"
@@ -86,6 +86,10 @@ var RootCmd = &cobra.Command{
 		ttnlog.Set(ctx)
 		grpclog.SetLogger(grpc.Wrap(ttnlog.Get()))
 
+		if viper.GetBool("allow-insecure") {
+			api.AllowInsecureFallback = true
+		}
+
 		ctx.WithFields(ttnlog.Fields{
 			"ComponentID":              viper.GetString("id"),
 			"Description":              viper.GetString("description"),
@@ -104,14 +108,6 @@ var RootCmd = &cobra.Command{
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	defer func() {
-		buf := make([]byte, 1<<16)
-		runtime.Stack(buf, false)
-		if thePanic := recover(); thePanic != nil && ctx != nil {
-			ctx.WithField("panic", thePanic).WithField("stack", string(buf)).Fatal("Stopping because of panic")
-		}
-	}()
-
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(-1)
@@ -151,7 +147,8 @@ func init() {
 		}
 	}
 
-	RootCmd.PersistentFlags().Bool("tls", false, "Use TLS")
+	RootCmd.PersistentFlags().Bool("tls", true, "Use TLS")
+	RootCmd.PersistentFlags().Bool("allow-insecure", false, "Allow insecure fallback if TLS unavailable")
 	RootCmd.PersistentFlags().String("key-dir", path.Clean(dir+"/.ttn/"), "The directory where public/private keys are stored")
 
 	viper.BindPFlags(RootCmd.PersistentFlags())

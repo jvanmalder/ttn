@@ -23,7 +23,7 @@ func TestEnqueueDownlink(t *testing.T) {
 	h := &handler{
 		Component: &component.Component{Ctx: GetLogger(t, "TestEnqueueDownlink")},
 		devices:   device.NewRedisDeviceStore(GetRedisClient(), "handler-test-enqueue-downlink"),
-		mqttEvent: make(chan *types.DeviceEvent, 10),
+		qEvent:    make(chan *types.DeviceEvent, 10),
 	}
 	err := h.EnqueueDownlink(&types.DownlinkMessage{
 		AppID: appID,
@@ -106,17 +106,19 @@ func TestHandleDownlink(t *testing.T) {
 		devices:      device.NewRedisDeviceStore(GetRedisClient(), "handler-test-handle-downlink"),
 		applications: application.NewRedisApplicationStore(GetRedisClient(), "handler-test-enqueue-downlink"),
 		downlink:     make(chan *pb_broker.DownlinkMessage),
-		mqttEvent:    make(chan *types.DeviceEvent, 10),
+		qEvent:       make(chan *types.DeviceEvent, 10),
 	}
 	h.InitStatus()
+
+	downlink := pb_broker.RandomDownlinkMessage()
+	downlink.AppEui = &appEUI
+	downlink.DevEui = &devEUI
+
 	// Neither payload nor Fields provided : ERROR
 	err = h.HandleDownlink(&types.DownlinkMessage{
 		AppID: appID,
 		DevID: devID,
-	}, &pb_broker.DownlinkMessage{
-		AppEui: &appEUI,
-		DevEui: &devEUI,
-	})
+	}, downlink)
 	a.So(err, ShouldNotBeNil)
 
 	h.devices.Set(&device.Device{
@@ -126,14 +128,12 @@ func TestHandleDownlink(t *testing.T) {
 	defer func() {
 		h.devices.Delete(appID, devID)
 	}()
+
+	downlink.Payload = []byte{96, 4, 3, 2, 1, 0, 1, 0, 1, 0, 0, 0, 0}
 	err = h.HandleDownlink(&types.DownlinkMessage{
 		AppID: appID,
 		DevID: devID,
-	}, &pb_broker.DownlinkMessage{
-		AppEui:  &appEUI,
-		DevEui:  &devEUI,
-		Payload: []byte{96, 4, 3, 2, 1, 0, 1, 0, 1, 0, 0, 0, 0},
-	})
+	}, downlink)
 	a.So(err, ShouldBeNil)
 
 	// Payload provided
@@ -143,23 +143,19 @@ func TestHandleDownlink(t *testing.T) {
 		a.So(dl.Payload, ShouldNotBeEmpty)
 		wg.Done()
 	}()
+
 	err = h.HandleDownlink(&types.DownlinkMessage{
 		AppID:      appID,
 		DevID:      devID,
 		PayloadRaw: []byte{0xAA, 0xBC},
-	}, &pb_broker.DownlinkMessage{
-		AppEui:         &appEUI,
-		DevEui:         &devEUI,
-		Payload:        []byte{96, 4, 3, 2, 1, 0, 1, 0, 1, 0, 0, 0, 0},
-		DownlinkOption: &pb_broker.DownlinkOption{},
-	})
+	}, downlink)
 	a.So(err, ShouldBeNil)
 	wg.WaitFor(100 * time.Millisecond)
 
 	// Both Payload and Fields provided
 	h.applications.Set(&application.Application{
 		AppID: appID,
-		Encoder: `function Encoder (payload){
+		CustomEncoder: `function Encoder (payload){
 	  		return [96, 4, 3, 2, 1, 0, 1, 0, 1, 0, 0, 0, 0]
 			}`,
 	})
@@ -167,17 +163,14 @@ func TestHandleDownlink(t *testing.T) {
 		h.applications.Delete(appID)
 	}()
 	jsonFields := map[string]interface{}{"temperature": 11}
+
 	err = h.HandleDownlink(&types.DownlinkMessage{
 		FPort:         1,
 		AppID:         appID,
 		DevID:         devID,
 		PayloadFields: jsonFields,
 		PayloadRaw:    []byte{0xAA, 0xBC},
-	}, &pb_broker.DownlinkMessage{
-		AppEui:  &appEUI,
-		DevEui:  &devEUI,
-		Payload: []byte{96, 4, 3, 2, 1, 0, 1, 0, 1, 0, 0, 0, 0},
-	})
+	}, downlink)
 	a.So(err, ShouldNotBeNil)
 
 	// JSON Fields provided
@@ -192,12 +185,7 @@ func TestHandleDownlink(t *testing.T) {
 		AppID:         appID,
 		DevID:         devID,
 		PayloadFields: jsonFields,
-	}, &pb_broker.DownlinkMessage{
-		AppEui:         &appEUI,
-		DevEui:         &devEUI,
-		Payload:        []byte{96, 4, 3, 2, 1, 0, 1, 0, 1, 0, 0, 0, 0},
-		DownlinkOption: &pb_broker.DownlinkOption{},
-	})
+	}, downlink)
 	a.So(err, ShouldBeNil)
 	wg.WaitFor(100 * time.Millisecond)
 }

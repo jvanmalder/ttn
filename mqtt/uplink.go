@@ -22,7 +22,7 @@ func (c *DefaultClient) PublishUplink(dataUp types.UplinkMessage) Token {
 	dataUp.Location = ""
 	msg, err := json.Marshal(dataUp)
 	if err != nil {
-		return &simpleToken{fmt.Errorf("Unable to marshal the message payload")}
+		return &simpleToken{fmt.Errorf("Unable to marshal the message payload: %s", err)}
 	}
 	return c.publish(topic.String(), msg)
 }
