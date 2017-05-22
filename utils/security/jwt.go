@@ -16,8 +16,8 @@ func BuildJWT(subject string, ttl time.Duration, privateKey []byte) (token strin
 	claims := jwt.StandardClaims{
 		Issuer:    subject,
 		Subject:   subject,
-		IssuedAt:  time.Now().Add(-20 * time.Second).Unix(),
-		NotBefore: time.Now().Add(-20 * time.Second).Unix(),
+		// IssuedAt:  time.Now().Add(-20 * time.Second).Unix()
+		// NotBefore: time.Now().Add(-20 * time.Second).Unix(),
 	}
 	if ttl > 0 {
 		claims.ExpiresAt = time.Now().Add(ttl).Unix()
